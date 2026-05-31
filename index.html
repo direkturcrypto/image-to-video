@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sketch Reactor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Space+Mono:wght@400;700&display=swap');
+  :root{--ink:#161616;--paper:#f7f5ef;--paper2:#ece8dc;--accent:#e63329;--accent2:#2f7de1;--ok:#1f9d55;--warn:#d68a00;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Space Mono',monospace;
+       background-image:radial-gradient(var(--paper2) 1px,transparent 1px);background-size:22px 22px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;
+         border-bottom:3px solid var(--ink);padding-bottom:14px;margin-bottom:24px;}
+  h1{font-family:'Caveat',cursive;font-size:54px;line-height:.9;margin:0;}
+  h1 span{color:var(--accent);}
+  .sub{font-size:12px;max-width:430px;opacity:.8;}
+  .card{background:#fff;border:3px solid var(--ink);border-radius:4px;padding:18px 20px;margin-bottom:22px;box-shadow:6px 6px 0 var(--ink);}
+  .card h2{font-family:'Caveat',cursive;font-size:30px;margin:0 0 4px;}
+  .card .hint{font-size:11px;opacity:.7;margin:0 0 14px;}
+  label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px;}
+  input[type=text],input[type=password],textarea,select{width:100%;font-family:'Space Mono',monospace;font-size:13px;
+       border:2px solid var(--ink);border-radius:3px;padding:10px 12px;background:var(--paper);color:var(--ink);}
+  textarea{resize:vertical;line-height:1.5;}
+  .row{display:flex;gap:14px;flex-wrap:wrap;}
+  .row>div{flex:1;min-width:150px;}
+  button{font-family:'Caveat',cursive;font-size:24px;cursor:pointer;border:3px solid var(--ink);border-radius:3px;
+         background:var(--accent);color:#fff;padding:6px 22px;box-shadow:4px 4px 0 var(--ink);transition:transform .05s,box-shadow .05s;}
+  button:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink);}
+  button:disabled{background:#bbb;cursor:not-allowed;box-shadow:4px 4px 0 #777;border-color:#777;}
+  button.alt{background:#fff;color:var(--ink);}
+  button.small{font-size:16px;padding:3px 12px;box-shadow:3px 3px 0 var(--ink);}
+  .framegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:12px;}
+  .frame{border:3px solid var(--ink);border-radius:3px;overflow:hidden;cursor:pointer;position:relative;aspect-ratio:16/9;}
+  .frame img{width:100%;height:100%;object-fit:cover;display:block;}
+  .frame.sel{border-color:var(--accent2);box-shadow:0 0 0 3px var(--accent2);}
+  .frame .pick{position:absolute;top:3px;right:3px;background:var(--accent2);color:#fff;font-size:10px;border-radius:50%;width:20px;height:20px;line-height:20px;text-align:center;display:none;}
+  .frame.sel .pick{display:block;}
+  .toggle{display:flex;align-items:center;gap:10px;margin:14px 0 4px;}
+  .toggle input{width:auto;}
+  .bar{height:26px;border:2px solid var(--ink);border-radius:3px;background:var(--paper);overflow:hidden;margin:12px 0;}
+  .bar>div{height:100%;background:var(--accent2);width:0;transition:width .3s;}
+  .stats{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;margin-bottom:10px;}
+  .stats b{font-size:20px;font-family:'Caveat';}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
+  .tile{border:2px solid var(--ink);border-radius:3px;background:var(--paper);position:relative;aspect-ratio:1;overflow:hidden;
+        display:flex;align-items:center;justify-content:center;font-size:10px;text-align:center;}
+  .tile img{width:100%;height:100%;object-fit:cover;}
+  .tile .num{position:absolute;top:0;left:0;background:var(--ink);color:#fff;font-size:10px;padding:1px 5px;z-index:2;}
+  .tile .st{position:absolute;bottom:0;left:0;right:0;font-size:9px;padding:2px;color:#fff;z-index:2;}
+  .tile.pending .st{background:#888;} .tile.busy .st{background:var(--warn);}
+  .tile.done .st{background:var(--ok);} .tile.error .st{background:var(--accent);}
+  .tile .re{position:absolute;top:2px;right:2px;background:#fff;border:1px solid var(--ink);border-radius:2px;font-size:9px;padding:1px 4px;cursor:pointer;z-index:3;display:none;}
+  .tile.done:hover .re,.tile.error:hover .re{display:block;}
+  .note{font-size:11px;background:var(--paper2);border-left:4px solid var(--accent);padding:8px 12px;margin:8px 0;}
+  code{background:var(--paper2);padding:1px 4px;border-radius:2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>Sketch <span>Reactor</span></h1></div>
+    <div class="sub">Bulk image generator that locks one art style across a whole video. Upload a sample clip, pick style frames, paste prompts, and it generates every image in order with OpenAI <code>GPT Image 2</code>.</div>
+  </header>
+
+  <div class="card">
+    <h2>1 · Setup</h2>
+    <p class="hint">Get an API key at <code>api-direct.derouter.network</code>. Key stays on your machine.</p>
+    <div class="note"><b>Cost control:</b> use <b>quality "low"</b> for bulk runs (~$0.02/image on gpt-image-2). "high" uses reasoning and can take 200s+ per image and cost ~$0.19 each. 270 low-quality images ≈ <b>$5–6</b>.</div>
+    <label>OpenAI API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-...">
+    <div class="row" style="margin-top:10px;align-items:center;">
+      <div style="flex:0;"><button class="alt small" id="testBtn">Test key</button></div>
+      <div style="font-size:12px;" id="testInfo"></div>
+    </div>
+    <div class="row">
+      <div><label>Model</label><select id="model">
+        <option value="gpt-image-2" selected>GPT Image 2 (best, ~$0.02–0.19/img)</option>
+        <option value="gpt-image-1.5">GPT Image 1.5 (cheaper)</option>
+        <option value="gpt-image-1-mini">GPT Image 1 Mini (cheapest, ~$0.005/img)</option></select></div>
+      <div><label>Quality</label><select id="quality">
+        <option value="low" selected>low (fast, cheap)</option>
+        <option value="medium">medium</option>
+        <option value="high">high (slow, reasoning)</option></select></div>
+      <div><label>Size</label><select id="size">
+        <option value="1024x1024" selected>1024×1024</option>
+        <option value="1536x1024">1536×1024 (landscape)</option>
+        <option value="1024x1536">1024×1536 (portrait)</option>
+        <option value="auto">auto</option></select></div>
+    </div>
+    <div class="row">
+      <div><label>Max retries</label><select id="retries">
+        <option>2</option><option selected>3</option><option>5</option></select></div>
+      <div><label>Delay between images (sec)</label><select id="delay">
+        <option value="0" selected>0</option><option value="0.5">0.5</option><option value="1">1</option><option value="2">2</option></select></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>2 · Art style from a sample video</h2>
+    <p class="hint">Upload a short clip in the style you want. The app pulls frames — click 1–3 to use as fixed style anchors. Every image is generated to match them.</p>
+    <button class="alt small" id="vidBtn">Upload sample video</button>
+    <input type="file" id="vidInput" accept="video/*" style="display:none">
+    <span id="vidStatus" style="font-size:11px;margin-left:10px;"></span>
+    <div class="framegrid" id="frames"></div>
+    <div id="noFfmpeg" style="display:none;">
+      <p class="hint" style="margin-top:14px;">No ffmpeg detected — upload up to 3 style images directly instead:</p>
+      <button class="alt small" id="imgBtn">Upload style image</button>
+      <input type="file" id="imgInput" accept="image/*" style="display:none">
+      <span id="imgStatus" style="font-size:11px;margin-left:10px;"></span>
+    </div>
+    <label>Art-style description — baked into every prompt</label>
+    <textarea id="styleSuffix" rows="4">Hand-drawn 2D doodle animation style. Stick-figure characters with round white heads, large expressive cartoon eyes and eyebrows, thin bold black outlines, simple thin stick limbs. Flat solid color fills with no gradients: deep blue night sky with small white stars, flat brown ground, bright orange campfire flames. Clean, simple, consistent character proportions and identical line weight in every frame.</textarea>
+    <label>Negative / avoid</label>
+    <input type="text" id="negative" value="no photorealism, no 3d render, no shading gradients, no extra detail, no text watermark">
+    <div class="toggle">
+      <input type="checkbox" id="usePrev" checked>
+      <label for="usePrev" style="margin:0;text-transform:none;font-weight:400;letter-spacing:0;">Feed previous image into the next one for continuity (recommended — keeps style locked across the sequence; runs one at a time)</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3 · Prompts</h2>
+    <p class="hint">One detailed prompt per block, separated by a blank line. Describe the scene only — the art-style text above is added automatically.</p>
+    <textarea id="prompts" rows="10" placeholder="Five stick figures sitting around a campfire at night under a starry sky, one looking surprised, telling stories
+
+A single stick figure standing alone in a dark cave holding a glowing torch, nervous expression
+
+..."></textarea>
+    <div class="row" style="margin-top:12px;align-items:center;">
+      <div style="flex:0;"><button class="alt small" id="countBtn">Count</button></div>
+      <div style="font-size:12px;" id="countInfo">0 prompts</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4 · Generate</h2>
+    <div class="stats">
+      <span>Total <b id="sTotal">0</b></span>
+      <span>Done <b id="sDone">0</b></span>
+      <span>Failed <b id="sErr">0</b></span>
+      <span>Est. cost <b id="sCost">$0.00</b></span>
+    </div>
+    <div class="bar"><div id="prog"></div></div>
+    <div class="row" style="align-items:center;">
+      <div style="flex:0;"><button id="runBtn">Start &rarr;</button></div>
+      <div style="flex:0;"><button class="alt" id="stopBtn" disabled>Stop</button></div>
+      <div style="flex:0;"><button class="alt" id="zipBtn" disabled>Download ZIP &darr;</button></div>
+    </div>
+    <div class="note">Images save to the <code>output/</code> folder next to <code>app.py</code> as they finish, numbered in order. Hover any finished tile to <b>redo</b> it.</div>
+    <div class="grid" id="grid" style="margin-top:14px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>5 · Voice Narrator (MiMo TTS)</h2>
+    <p class="hint">Generate natural AI narration with expression. Use tags like <code>[crying]</code>, <code>[pause]</code>, <code>[laughing]</code>, <code>[sniffles]</code>, <code>[sigh]</code>, <code>[whisper]</code> inline for natural emotion. Supports singing with <code>[sing]</code>.</p>
+    <label>TTS API Key</label>
+    <input type="password" id="ttsKey" placeholder="MiMo TTS API key">
+    <div class="row">
+      <div><label>Voice</label><select id="ttsVoice">
+        <option value="Mia" selected>Mia (English ♀)</option>
+        <option value="Chloe">Chloe (English ♀)</option>
+        <option value="Milo">Milo (English ♂)</option>
+        <option value="Dean">Dean (English ♂)</option>
+        <option value="冰糖">冰糖 Bing Tang (中文 ♀)</option>
+        <option value="茉莉">茉莉 Mo Li (中文 ♀)</option>
+        <option value="苏打">苏打 Su Da (中文 ♂)</option>
+        <option value="白桦">白桦 Bai Hua (中文 ♂)</option></select></div>
+      <div><label>Output format</label><select id="ttsFormat">
+        <option value="wav" selected>WAV</option>
+        <option value="pcm16">PCM16 (streaming)</option></select></div>
+    </div>
+    <label>Style instructions (optional — natural language)</label>
+    <textarea id="ttsStyle" rows="3" placeholder="e.g. Speak like a dramatic movie trailer narrator. Deep voice, slow pace, with long pauses between sentences."></textarea>
+    <label>Narration text — use [tags] for expression</label>
+    <textarea id="ttsText" rows="8" placeholder="[crying] She's gone... she's really gone...[pause] but you know what's funny? [sniffles] She always said she'd outlive us all. [crying] God, I miss her so much."></textarea>
+    <div class="row" style="margin-top:12px;align-items:center;">
+      <div style="flex:0;"><button id="ttsBtn">Generate Voice 🎙️</button></div>
+      <div style="font-size:12px;" id="ttsStatus"></div>
+    </div>
+    <div id="ttsResult" style="margin-top:14px;display:none;">
+      <audio id="ttsAudio" controls style="width:100%;"></audio>
+      <div style="margin-top:8px;">
+        <a id="ttsDownload" href="#" download class="small" style="font-size:13px;text-decoration:underline;">⬇ Download audio</a>
+        <span id="ttsSize" style="font-size:11px;margin-left:12px;"></span>
+      </div>
+    </div>
+    <div class="note" style="margin-top:14px;"><b>Expression tags:</b> [crying] [laughing] [whisper] [shout] [pause] [sigh] [sniffles] [gasp] [breathing] [trembling] [sobbing] [singing] — mix freely in your text for natural, emotional narration.</div>
+  </div>
+
+  <div class="card">
+    <h2>6 · Auto Narrator (One-Click)</h2>
+    <p class="hint">After generating all images, click once to auto-generate narration text (GPT-5.5) + voice (MiMo TTS) from your prompts. No manual text needed!</p>
+    <div class="row">
+      <div><label>Narration language</label><select id="autoLang">
+        <option value="english" selected>English</option>
+        <option value="indonesian">Indonesian</option>
+        <option value="mandarin chinese">中文 (Mandarin)</option></select></div>
+      <div><label>Narration LLM model</label><select id="autoModel">
+        <option value="gpt-5.5" selected>GPT-5.5</option>
+        <option value="gpt-5.4">GPT-5.4</option>
+        <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option></select></div>
+    </div>
+    <label>Narration style (optional)</label>
+    <textarea id="autoStyle" rows="2" placeholder="e.g. Dramatic movie trailer narrator, deep voice, slow cinematic pace"></textarea>
+    <div class="row" style="margin-top:12px;align-items:center;">
+      <div style="flex:0;"><button id="autoNarrBtn">🎙️ Auto Generate Narrator</button></div>
+      <div style="font-size:12px;" id="autoNarrStatus"></div>
+    </div>
+    <div id="autoNarrResult" style="margin-top:14px;display:none;">
+      <label style="margin-top:0;">Generated narration text:</label>
+      <textarea id="autoNarrText" rows="6" readonly style="background:var(--paper2);"></textarea>
+      <audio id="autoNarrAudio" controls style="width:100%;margin-top:10px;"></audio>
+      <div style="margin-top:8px;">
+        <a id="autoNarrDownload" href="#" download style="font-size:13px;text-decoration:underline;">⬇ Download audio</a>
+        <span id="autoNarrSize" style="font-size:11px;margin-left:12px;"></span>
+      </div>
+    </div>
+    <div class="note" style="margin-top:14px;">Uses the same API key (Section 1) for text generation + TTS key from Section 5. Generates narration automatically from your image prompts using GPT-5.5, then converts to voice with MiMo TTS expression tags.</div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let poll=null, selectedFrames=[], anchorSlot=0;
+
+// detect ffmpeg
+fetch('/api/env').then(r=>r.json()).then(d=>{
+  if(!d.ffmpeg){ $('noFfmpeg').style.display='block'; $('vidBtn').disabled=true;
+    $('vidStatus').textContent='ffmpeg not found — use direct image upload below'; }
+});
+
+function parsePrompts(){
+  const raw=$('prompts').value.trim();
+  return raw?raw.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean):[];
+}
+function cost(n){
+  const m=$('model').value;
+  const q=($('quality')||{}).value||'low';
+  const table={
+    'gpt-image-2':{low:0.02,medium:0.07,high:0.19},
+    'gpt-image-1.5':{low:0.015,medium:0.05,high:0.15},
+    'gpt-image-1-mini':{low:0.005,medium:0.01,high:0.02}
+  };
+  const per=(table[m]||table['gpt-image-2'])[q];
+  return '~$'+(n*per).toFixed(2);
+}
+$('countBtn').onclick=()=>{const p=parsePrompts();$('countInfo').textContent=p.length+' prompts';$('sCost').textContent=cost(p.length);};
+$('model').onchange=()=>$('sCost').textContent=cost(parsePrompts().length);
+$('quality').onchange=()=>$('sCost').textContent=cost(parsePrompts().length);
+
+// test key
+$('testBtn').onclick=async()=>{
+  const k=$('apiKey').value.trim();
+  if(!k){$('testInfo').textContent='enter a key first';return;}
+  $('testInfo').textContent='checking...';
+  const d=await(await fetch('/api/test_key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:k})})).json();
+  $('testInfo').textContent = d.ok ? '✓ key works' : '✗ '+(d.error||'failed');
+  $('testInfo').style.color = d.ok ? '#1f9d55' : '#e63329';
+};
+
+// video upload -> frames
+$('vidBtn').onclick=()=>$('vidInput').click();
+$('vidInput').onchange=async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  $('vidStatus').textContent='extracting frames...';
+  const fd=new FormData(); fd.append('file',f);
+  const r=await fetch('/api/upload_video',{method:'POST',body:fd});
+  const d=await r.json();
+  if(d.error){$('vidStatus').textContent=d.error;return;}
+  $('vidStatus').textContent='click 1-3 frames to lock the style';
+  const g=$('frames'); g.innerHTML=''; selectedFrames=[];
+  d.frames.forEach(fn=>{
+    const div=document.createElement('div'); div.className='frame';
+    div.innerHTML=`<img src="/frames/${fn}"><span class="pick">&check;</span>`;
+    div.onclick=()=>toggleFrame(fn,div);
+    g.appendChild(div);
+  });
+};
+function toggleFrame(fn,div){
+  const i=selectedFrames.indexOf(fn);
+  if(i>=0){selectedFrames.splice(i,1);div.classList.remove('sel');}
+  else{ if(selectedFrames.length>=3){alert('Max 3 style frames.');return;}
+        selectedFrames.push(fn);div.classList.add('sel'); }
+  fetch('/api/set_anchors',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({frames:selectedFrames})});
+}
+
+// direct image anchors (no ffmpeg)
+$('imgBtn')&&($('imgBtn').onclick=()=>$('imgInput').click());
+$('imgInput')&&($('imgInput').onchange=async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const fd=new FormData(); fd.append('file',f); fd.append('slot',anchorSlot);
+  await fetch('/api/upload_anchor',{method:'POST',body:fd});
+  anchorSlot=(anchorSlot+1)%3;
+  $('imgStatus').textContent=`uploaded style image (${anchorSlot===0?3:anchorSlot}/3)`;
+});
+
+function buildGrid(n){
+  const g=$('grid'); g.innerHTML='';
+  for(let i=0;i<n;i++){
+    const t=document.createElement('div');
+    t.className='tile pending'; t.id='tile'+i;
+    t.innerHTML=`<span class="num">${String(i+1).padStart(3,'0')}</span><span class="st">queued</span><button class="re" onclick="regen(${i})">redo</button>`;
+    g.appendChild(t);
+  }
+}
+
+async function start(){
+  const api_key=$('apiKey').value.trim();
+  if(!api_key){alert('Enter your Gemini API key first.');return;}
+  const prompts=parsePrompts();
+  if(!prompts.length){alert('Paste some prompts first.');return;}
+  const settings={
+    model:$('model').value, retries:$('retries').value, delay:$('delay').value,
+    quality:$('quality').value, size:$('size').value,
+    style_suffix:$('styleSuffix').value, negative:$('negative').value,
+    use_previous:$('usePrev').checked
+  };
+  buildGrid(prompts.length);
+  $('sTotal').textContent=prompts.length; $('sCost').textContent=cost(prompts.length);
+  const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({api_key,prompts,settings})});
+  const d=await r.json();
+  if(d.error){alert(d.error);return;}
+  $('runBtn').disabled=true; $('stopBtn').disabled=false;
+  startPolling();
+}
+function startPolling(){ if(poll)clearInterval(poll); poll=setInterval(refresh,1200); refresh(); }
+async function refresh(){
+  const d=await(await fetch('/api/status')).json();
+  $('sTotal').textContent=d.total; $('sDone').textContent=d.done; $('sErr').textContent=d.error;
+  $('prog').style.width=d.total?((d.done/d.total)*100)+'%':'0%';
+  d.items.forEach(it=>{
+    const t=$('tile'+it.idx); if(!t)return;
+    if(t.dataset.status===it.status && t.dataset.file===(it.file||''))return;
+    t.dataset.status=it.status; t.dataset.file=it.file||'';
+    t.className='tile '+it.status;
+    if(it.status==='error' && it.error){ t.title=it.error; } else { t.title=''; }
+    const lbl=it.status==='done'?'ready':it.status==='busy'?'…':it.status==='error'?'failed':'queued';
+    let h=`<span class="num">${String(it.idx+1).padStart(3,'0')}</span>`;
+    if(it.file)h+=`<img src="/output/${it.file}?t=${Date.now()}">`;
+    h+=`<span class="st">${lbl}</span><button class="re" onclick="regen(${it.idx})">redo</button>`;
+    t.innerHTML=h;
+  });
+  $('zipBtn').disabled=d.done===0;
+  if(!d.running){clearInterval(poll);poll=null;$('runBtn').disabled=false;$('stopBtn').disabled=true;}
+}
+window.regen=async function(idx){
+  const api_key=$('apiKey').value.trim();
+  const d=await(await fetch('/api/regen',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({idx,api_key})})).json();
+  if(d.error){alert(d.error);return;} refresh();
+};
+$('runBtn').onclick=start;
+$('stopBtn').onclick=()=>fetch('/api/stop',{method:'POST'});
+$('zipBtn').onclick=()=>window.location='/api/zip';
+
+// TTS Voice Narrator
+$('ttsBtn').onclick=async()=>{
+  const api_key=$('ttsKey').value.trim();
+  const text=$('ttsText').value.trim();
+  if(!api_key){alert('Enter your TTS API key.');return;}
+  if(!text){alert('Enter narration text.');return;}
+  $('ttsBtn').disabled=true;
+  $('ttsStatus').textContent='Generating voice...';
+  $('ttsResult').style.display='none';
+  try{
+    const body={
+      api_key,
+      text,
+      voice:$('ttsVoice').value,
+      style:$('ttsStyle').value.trim(),
+      format:$('ttsFormat').value,
+    };
+    const r=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d.error){
+      $('ttsStatus').textContent='❌ '+d.error;
+      $('ttsStatus').style.color='#e63329';
+    }else{
+      $('ttsStatus').textContent='✅ Voice generated!';
+      $('ttsStatus').style.color='#1f9d55';
+      $('ttsAudio').src='/output/'+d.file;
+      $('ttsDownload').href='/output/'+d.file;
+      $('ttsSize').textContent=(d.size/1024).toFixed(1)+' KB';
+      $('ttsResult').style.display='block';
+    }
+  }catch(e){
+    $('ttsStatus').textContent='❌ '+e.message;
+    $('ttsStatus').style.color='#e63329';
+  }
+  $('ttsBtn').disabled=false;
+};
+
+// Auto Narrator (One-Click)
+$('autoNarrBtn').onclick=async()=>{
+  const api_key=$('apiKey').value.trim();
+  const tts_key=$('ttsKey').value.trim();
+  const prompts=parsePrompts();
+  if(!api_key){alert('Enter your image API key in Section 1.');return;}
+  if(!tts_key){alert('Enter your TTS API key in Section 5.');return;}
+  if(!prompts.length){alert('Paste prompts in Section 3 first!');return;}
+  $('autoNarrBtn').disabled=true;
+  $('autoNarrStatus').textContent='Generating narration with GPT-5.5...';
+  $('autoNarrStatus').style.color='var(--ink)';
+  $('autoNarrResult').style.display='none';
+  try{
+    const body={
+      api_key,
+      tts_key,
+      prompts,
+      voice:$('ttsVoice').value,
+      style:$('autoStyle').value.trim(),
+      narration_model:$('autoModel').value,
+      format:$('ttsFormat').value,
+      language:$('autoLang').value,
+    };
+    const r=await fetch('/api/auto_narrator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d.error){
+      $('autoNarrStatus').textContent='❌ '+d.error;
+      $('autoNarrStatus').style.color='#e63329';
+      // Show narration text if available even on TTS error
+      if(d.narration){
+        $('autoNarrText').value=d.narration;
+        $('autoNarrResult').style.display='block';
+      }
+    }else{
+      $('autoNarrStatus').textContent='✅ Narrator generated!';
+      $('autoNarrStatus').style.color='#1f9d55';
+      $('autoNarrText').value=d.narration;
+      $('autoNarrAudio').src='/output/'+d.file;
+      $('autoNarrDownload').href='/output/'+d.file;
+      $('autoNarrSize').textContent=(d.size/1024).toFixed(1)+' KB';
+      $('autoNarrResult').style.display='block';
+    }
+  }catch(e){
+    $('autoNarrStatus').textContent='❌ '+e.message;
+    $('autoNarrStatus').style.color='#e63329';
+  }
+  $('autoNarrBtn').disabled=false;
+};
+</script>
+</body>
+</html>
