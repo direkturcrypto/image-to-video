@@ -29,8 +29,17 @@ def fake_get(url, **kw):
 appmod.requests.post=fake_post
 appmod.requests.get=fake_get
 
-for d in (appmod.OUTPUT_DIR, appmod.ANCHOR_DIR):
-    for f in d.glob("*"): f.unlink()
+# IMPORTANT: redirect all I/O to a throwaway sandbox so running the test can
+# never delete a user's real generated images in ./output (it used to wipe them).
+import tempfile
+_sandbox = Path(tempfile.mkdtemp(prefix="sketch_test_"))
+appmod.OUTPUT_DIR = _sandbox / "output"
+appmod.ANCHOR_DIR = _sandbox / "anchors"
+appmod.FRAMES_DIR = _sandbox / "frames"
+for d in (appmod.OUTPUT_DIR, appmod.ANCHOR_DIR, appmod.FRAMES_DIR):
+    d.mkdir(parents=True, exist_ok=True)
+appmod.PROJECT_FILE = appmod.OUTPUT_DIR / "project.json"
+print("SANDBOX:", _sandbox)
 
 client = appmod.app.test_client()
 

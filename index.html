@@ -12,7 +12,7 @@
        background-image:radial-gradient(var(--paper2) 1px,transparent 1px);background-size:22px 22px;}
   .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
   header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;
-         border-bottom:3px solid var(--ink);padding-bottom:14px;margin-bottom:24px;}
+         border-bottom:3px solid var(--ink);padding-bottom:14px;margin-bottom:18px;}
   h1{font-family:'Caveat',cursive;font-size:54px;line-height:.9;margin:0;}
   h1 span{color:var(--accent);}
   .sub{font-size:12px;max-width:430px;opacity:.8;}
@@ -20,7 +20,7 @@
   .card h2{font-family:'Caveat',cursive;font-size:30px;margin:0 0 4px;}
   .card .hint{font-size:11px;opacity:.7;margin:0 0 14px;}
   label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px;}
-  input[type=text],input[type=password],textarea,select{width:100%;font-family:'Space Mono',monospace;font-size:13px;
+  input[type=text],input[type=password],input[type=number],textarea,select{width:100%;font-family:'Space Mono',monospace;font-size:13px;
        border:2px solid var(--ink);border-radius:3px;padding:10px 12px;background:var(--paper);color:var(--ink);}
   textarea{resize:vertical;line-height:1.5;}
   .row{display:flex;gap:14px;flex-wrap:wrap;}
@@ -31,6 +31,15 @@
   button:disabled{background:#bbb;cursor:not-allowed;box-shadow:4px 4px 0 #777;border-color:#777;}
   button.alt{background:#fff;color:var(--ink);}
   button.small{font-size:16px;padding:3px 12px;box-shadow:3px 3px 0 var(--ink);}
+  /* tabs */
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:3px solid var(--ink);margin-bottom:24px;}
+  .tabbtn{font-family:'Caveat',cursive;font-size:26px;background:var(--paper2);color:var(--ink);
+          border:3px solid var(--ink);border-bottom:none;border-radius:7px 7px 0 0;padding:4px 26px;
+          box-shadow:none;transform:none;margin-bottom:-3px;opacity:.55;}
+  .tabbtn:hover{transform:none;box-shadow:none;opacity:.85;}
+  .tabbtn.active{background:#fff;opacity:1;border-bottom:3px solid #fff;}
+  .tabpane{display:none;}
+  .tabpane.active{display:block;}
   .framegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:12px;}
   .frame{border:3px solid var(--ink);border-radius:3px;overflow:hidden;cursor:pointer;position:relative;aspect-ratio:16/9;}
   .frame img{width:100%;height:100%;object-fit:cover;display:block;}
@@ -61,232 +70,383 @@
 <div class="wrap">
   <header>
     <div><h1>Sketch <span>Reactor</span></h1></div>
-    <div class="sub">Bulk image generator that locks one art style across a whole video. Upload a sample clip, pick style frames, paste prompts, and it generates every image in order with OpenAI <code>GPT Image 2</code>.</div>
+    <div class="sub">Bulk image generator + synced voice narration. Set keys & style once in <b>Config</b>, then go fully automatic in <b>Auto Build</b> or take full control in <b>Manual Build</b>.</div>
   </header>
 
-  <div class="card">
-    <h2>1 · Setup</h2>
-    <p class="hint">Get an API key at <code>api-direct.derouter.network</code>. Key stays on your machine.</p>
-    <div class="note"><b>Cost control:</b> use <b>quality "low"</b> for bulk runs (~$0.02/image on gpt-image-2). "high" uses reasoning and can take 200s+ per image and cost ~$0.19 each. 270 low-quality images ≈ <b>$5–6</b>.</div>
-    <label>OpenAI API Key</label>
-    <input type="password" id="apiKey" placeholder="sk-...">
-    <div class="row" style="margin-top:10px;align-items:center;">
-      <div style="flex:0;"><button class="alt small" id="testBtn">Test key</button></div>
-      <div style="font-size:12px;" id="testInfo"></div>
-    </div>
-    <div class="row">
-      <div><label>Model</label><select id="model">
-        <option value="gpt-image-2" selected>GPT Image 2 (best, ~$0.02–0.19/img)</option>
-        <option value="gpt-image-1.5">GPT Image 1.5 (cheaper)</option>
-        <option value="gpt-image-1-mini">GPT Image 1 Mini (cheapest, ~$0.005/img)</option></select></div>
-      <div><label>Quality</label><select id="quality">
-        <option value="low" selected>low (fast, cheap)</option>
-        <option value="medium">medium</option>
-        <option value="high">high (slow, reasoning)</option></select></div>
-      <div><label>Size</label><select id="size">
-        <option value="1024x1024" selected>1024×1024</option>
-        <option value="1536x1024">1536×1024 (landscape)</option>
-        <option value="1024x1536">1024×1536 (portrait)</option>
-        <option value="auto">auto</option></select></div>
-    </div>
-    <div class="row">
-      <div><label>Max retries</label><select id="retries">
-        <option>2</option><option selected>3</option><option>5</option></select></div>
-      <div><label>Delay between images (sec)</label><select id="delay">
-        <option value="0" selected>0</option><option value="0.5">0.5</option><option value="1">1</option><option value="2">2</option></select></div>
-    </div>
+  <div class="tabs">
+    <button class="tabbtn active" data-tab="config">⚙️ Config</button>
+    <button class="tabbtn" data-tab="characters">👤 Characters</button>
+    <button class="tabbtn" data-tab="auto">✨ Auto Build</button>
+    <button class="tabbtn" data-tab="manual">🛠️ Manual Build</button>
   </div>
-  <div class="card">
-    <h2>2 · Art style from a sample video</h2>
-    <p class="hint">Upload a short clip in the style you want. The app pulls frames — click 1–3 to use as fixed style anchors. Every image is generated to match them.</p>
-    <button class="alt small" id="vidBtn">Upload sample video</button>
-    <input type="file" id="vidInput" accept="video/*" style="display:none">
-    <span id="vidStatus" style="font-size:11px;margin-left:10px;"></span>
-    <div class="framegrid" id="frames"></div>
-    <div id="noFfmpeg" style="display:none;">
-      <p class="hint" style="margin-top:14px;">No ffmpeg detected — upload up to 3 style images directly instead:</p>
-      <button class="alt small" id="imgBtn">Upload style image</button>
-      <input type="file" id="imgInput" accept="image/*" style="display:none">
-      <span id="imgStatus" style="font-size:11px;margin-left:10px;"></span>
+
+  <datalist id="modelList"></datalist>
+
+  <!-- ============================ CONFIG ============================ -->
+  <div class="tabpane active" data-tab="config">
+    <div class="card">
+      <h2>API Keys</h2>
+      <p class="hint">Image/LLM key from <code>api-direct.derouter.network</code>. TTS key from your MiMo token plan. Keys stay on your machine.</p>
+      <div class="row">
+        <div><label>Image / LLM API Key (derouter)</label><input type="password" id="apiKey" placeholder="sk-..."></div>
+        <div><label>TTS API Key (MiMo)</label><input type="password" id="ttsKey" placeholder="tp-..."></div>
+      </div>
+      <div class="row" style="margin-top:10px;align-items:center;">
+        <div style="flex:0;"><button class="alt small" id="testBtn">Test image key</button></div>
+        <div style="font-size:12px;" id="testInfo"></div>
+        <div style="flex:0;"><button class="alt small" id="clearCfgBtn" title="Erase everything saved in this browser">Forget saved config</button></div>
+      </div>
+      <p class="hint" style="margin-top:10px;">💾 All settings on this tab (including keys) are saved in <b>this browser's localStorage</b> so you don't re-enter them each time. They never leave your machine. Use <b>Forget saved config</b> on a shared computer.</p>
     </div>
-    <label>Art-style description — baked into every prompt</label>
-    <textarea id="styleSuffix" rows="4">Hand-drawn 2D doodle animation style. Stick-figure characters with round white heads, large expressive cartoon eyes and eyebrows, thin bold black outlines, simple thin stick limbs. Flat solid color fills with no gradients: deep blue night sky with small white stars, flat brown ground, bright orange campfire flames. Clean, simple, consistent character proportions and identical line weight in every frame.</textarea>
-    <label>Negative / avoid</label>
-    <input type="text" id="negative" value="no photorealism, no 3d render, no shading gradients, no extra detail, no text watermark">
-    <div class="toggle">
-      <input type="checkbox" id="usePrev" checked>
-      <label for="usePrev" style="margin:0;text-transform:none;font-weight:400;letter-spacing:0;">Feed previous image into the next one for continuity (recommended — keeps style locked across the sequence; runs one at a time)</label>
+
+    <div class="card">
+      <h2>Generation settings</h2>
+      <div class="note"><b>Cost control:</b> use <b>quality "low"</b> for bulk runs (~$0.02/image on gpt-image-2). "high" uses reasoning and can take 200s+ per image.</div>
+      <div class="row">
+        <div><label>Image model</label><select id="model">
+          <option value="gpt-image-2" selected>GPT Image 2 (best)</option>
+          <option value="gpt-image-1.5">GPT Image 1.5 (cheaper)</option>
+          <option value="gpt-image-1-mini">GPT Image 1 Mini (cheapest)</option></select></div>
+        <div><label>Quality</label><select id="quality">
+          <option value="low" selected>low (fast, cheap)</option>
+          <option value="medium">medium</option>
+          <option value="high">high (slow, reasoning)</option></select></div>
+        <div><label>Size</label><select id="size">
+          <option value="1024x1024" selected>1024×1024</option>
+          <option value="1536x1024">1536×1024 (landscape)</option>
+          <option value="1024x1536">1024×1536 (portrait)</option>
+          <option value="auto">auto</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>Max retries</label><select id="retries">
+          <option>2</option><option selected>3</option><option>5</option></select></div>
+        <div><label>Delay between images (sec)</label><select id="delay">
+          <option value="0" selected>0</option><option value="0.5">0.5</option><option value="1">1</option><option value="2">2</option></select></div>
+        <div><label>Text model (Claude) — prompts & narration</label>
+          <input type="text" id="llmModel" list="modelList" value="claude-opus-4-6"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Art style</h2>
+      <p class="hint">Optionally upload a sample clip and click 1–3 frames to lock the look. The style text below is baked into every prompt.</p>
+      <button class="alt small" id="vidBtn">Upload sample video</button>
+      <input type="file" id="vidInput" accept="video/*" style="display:none">
+      <span id="vidStatus" style="font-size:11px;margin-left:10px;"></span>
+      <div class="framegrid" id="frames"></div>
+      <div id="noFfmpeg" style="display:none;">
+        <p class="hint" style="margin-top:14px;">No ffmpeg detected — upload up to 3 style images directly instead:</p>
+        <button class="alt small" id="imgBtn">Upload style image</button>
+        <input type="file" id="imgInput" accept="image/*" style="display:none">
+        <span id="imgStatus" style="font-size:11px;margin-left:10px;"></span>
+      </div>
+      <label>Art-style description — baked into every prompt</label>
+      <textarea id="styleSuffix" rows="4">Hand-drawn 2D doodle animation style. Stick-figure characters with round white heads, large expressive cartoon eyes and eyebrows, thin bold black outlines, simple thin stick limbs. Flat solid color fills with no gradients: deep blue night sky with small white stars, flat brown ground, bright orange campfire flames. Clean, simple, consistent character proportions and identical line weight in every frame.</textarea>
+      <label>Negative / avoid</label>
+      <input type="text" id="negative" value="no photorealism, no 3d render, no shading gradients, no extra detail, no text watermark">
+      <div class="toggle">
+        <input type="checkbox" id="usePrev" checked>
+        <label for="usePrev" style="margin:0;text-transform:none;font-weight:400;letter-spacing:0;">Feed previous image into the next one for continuity (recommended — keeps style locked; runs one at a time)</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Voice</h2>
+      <p class="hint">Used by both Auto and Manual builds for narration.</p>
+      <div class="row">
+        <div><label>Voice</label><select id="ttsVoice">
+          <option value="Mia" selected>Mia (English ♀)</option>
+          <option value="Chloe">Chloe (English ♀)</option>
+          <option value="Milo">Milo (English ♂)</option>
+          <option value="Dean">Dean (English ♂)</option>
+          <option value="冰糖">冰糖 Bing Tang (中文 ♀)</option>
+          <option value="茉莉">茉莉 Mo Li (中文 ♀)</option>
+          <option value="苏打">苏打 Su Da (中文 ♂)</option>
+          <option value="白桦">白桦 Bai Hua (中文 ♂)</option></select></div>
+        <div><label>Output format</label><select id="ttsFormat">
+          <option value="wav" selected>WAV</option>
+          <option value="pcm16">PCM16 (streaming)</option></select></div>
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>3 · Prompts</h2>
-    <p class="hint">One detailed prompt per block, separated by a blank line. Describe the scene only — the art-style text above is added automatically.</p>
-    <textarea id="prompts" rows="10" placeholder="Five stick figures sitting around a campfire at night under a starry sky, one looking surprised, telling stories
+  <!-- ============================ CHARACTERS ============================ -->
+  <div class="tabpane" data-tab="characters">
+    <div class="card">
+      <h2>👤 Character Builder</h2>
+      <p class="hint">Generate a reusable <b>character reference sheet</b> with GPT Image 2 (poses + close-up on white). Pick it in Auto/Manual build and every scene keeps that exact character — so your art style isn't limited to a video/image sample. Uses the model/quality/size + art style from <b>Config</b>.</p>
+      <div class="row">
+        <div><label>Character name</label><input type="text" id="charName" placeholder="e.g. Old fisherman Budi"></div>
+      </div>
+      <label>Character description</label>
+      <textarea id="charDesc" rows="4" placeholder="e.g. An elderly fisherman, weathered tan face, short white beard, faded blue rolled-up shirt, straw hat, kind tired eyes, slim build."></textarea>
+      <div class="row" style="margin-top:12px;align-items:center;">
+        <div style="flex:0;"><button id="genCharBtn">✨ Generate Character Sheet</button></div>
+        <div style="font-size:12px;" id="genCharStatus"></div>
+      </div>
+      <label style="margin-top:18px;">Your characters</label>
+      <div class="grid" id="charGallery" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));"></div>
+      <p class="hint" id="charEmpty" style="margin-top:8px;">No characters yet — the default <b>Stickman</b> style is always available in the build tabs.</p>
+    </div>
+  </div>
+
+  <!-- ============================ AUTO ============================ -->
+  <div class="tabpane" data-tab="auto">
+    <div class="card">
+      <h2>✨ Auto Build — title → finished video</h2>
+      <p class="hint">Type a title and click once. Claude writes the scene prompts, every image is generated in your locked style, then a short punchy narration is written and voiced so the final MP4 stays perfectly in sync. Uses everything from the <b>Config</b> tab.</p>
+      <div class="note" style="border-left-color:var(--accent2);">⚡ <b>Fast cuts:</b> each image shows for ~2 seconds, so pick more scenes for a longer video — roughly <b>~30 scenes ≈ 1 minute</b>. (Image generation is pay-per-image.)</div>
+      <label>Title / idea</label>
+      <input type="text" id="autoTitle" placeholder="e.g. A lonely robot learns to paint the sunset">
+      <div class="row">
+        <div><label>How many scenes</label>
+          <input type="number" id="autoScenes" min="1" max="60" value="8"></div>
+        <div><label>Language</label><select id="autoLang">
+          <option value="english" selected>English</option>
+          <option value="indonesian">Indonesian</option>
+          <option value="mandarin chinese">中文 (Mandarin)</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>Character</label><select id="autoChar">
+          <option value="">Stickman (default)</option></select></div>
+        <div><label>Voice</label><select id="autoVoice">
+          <option value="" selected>Same as Config</option>
+          <option value="Mia">Mia (English ♀)</option>
+          <option value="Chloe">Chloe (English ♀)</option>
+          <option value="Milo">Milo (English ♂)</option>
+          <option value="Dean">Dean (English ♂)</option>
+          <option value="冰糖">冰糖 Bing Tang (中文 ♀)</option>
+          <option value="茉莉">茉莉 Mo Li (中文 ♀)</option>
+          <option value="苏打">苏打 Su Da (中文 ♂)</option>
+          <option value="白桦">白桦 Bai Hua (中文 ♂)</option></select></div>
+      </div>
+      <label>Narration / story tone (optional)</label>
+      <textarea id="autoStyle" rows="2" placeholder="e.g. Warm storyteller, gentle cinematic pace"></textarea>
+      <div class="row" style="margin-top:14px;align-items:center;">
+        <div style="flex:0;"><button id="autoBtn">▶ Generate Everything</button></div>
+        <div style="font-size:13px;font-weight:700;" id="autoStatus"></div>
+      </div>
+      <div class="bar"><div id="autoProg"></div></div>
+
+      <div id="autoPromptsWrap" style="display:none;">
+        <label>Scene prompts written by Claude</label>
+        <textarea id="autoPrompts" rows="5" readonly style="background:var(--paper2);"></textarea>
+      </div>
+
+      <div id="agridWrap" style="display:none;margin-top:14px;">
+        <label>Images</label>
+        <div class="grid" id="agrid"></div>
+      </div>
+
+      <div id="autoResult" style="display:none;margin-top:16px;">
+        <label>Final video</label>
+        <video id="autoVideo" controls style="width:100%;border:2px solid var(--ink);border-radius:3px;"></video>
+        <div style="margin-top:8px;"><a id="autoVideoDl" href="#" download style="font-size:13px;text-decoration:underline;">⬇ Download video</a></div>
+        <label style="margin-top:10px;">Per-scene narration</label>
+        <textarea id="autoNarr" rows="5" readonly style="background:var(--paper2);"></textarea>
+      </div>
+      <div class="note" style="margin-top:14px;">Needs <code>ffmpeg</code> for the final video and a TTS key in Config. Image generation is pay-per-image — check the scene count before running.</div>
+    </div>
+  </div>
+
+  <!-- ============================ MANUAL ============================ -->
+  <div class="tabpane" data-tab="manual">
+    <div class="card">
+      <h2>1 · Prompts</h2>
+      <p class="hint">Paste your own prompts — one block per image, separated by a blank line. The art-style text from Config is added automatically. Or reuse images already generated with <b>Load from Prev Project</b>.</p>
+      <textarea id="prompts" rows="9" placeholder="Five stick figures sitting around a campfire at night under a starry sky, telling stories
 
 A single stick figure standing alone in a dark cave holding a glowing torch, nervous expression
 
 ..."></textarea>
-    <div class="row" style="margin-top:12px;align-items:center;">
-      <div style="flex:0;"><button class="alt small" id="countBtn">Count</button></div>
-      <div style="font-size:12px;" id="countInfo">0 prompts</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>4 · Generate</h2>
-    <div class="stats">
-      <span>Total <b id="sTotal">0</b></span>
-      <span>Done <b id="sDone">0</b></span>
-      <span>Failed <b id="sErr">0</b></span>
-      <span>Est. cost <b id="sCost">$0.00</b></span>
-    </div>
-    <div class="bar"><div id="prog"></div></div>
-    <div class="row" style="align-items:center;">
-      <div style="flex:0;"><button id="runBtn">Start &rarr;</button></div>
-      <div style="flex:0;"><button class="alt" id="stopBtn" disabled>Stop</button></div>
-      <div style="flex:0;"><button class="alt" id="zipBtn" disabled>Download ZIP &darr;</button></div>
-    </div>
-    <div class="note">Images save to the <code>output/</code> folder next to <code>app.py</code> as they finish, numbered in order. Hover any finished tile to <b>redo</b> it.</div>
-    <div class="grid" id="grid" style="margin-top:14px;"></div>
-  </div>
-
-  <div class="card">
-    <h2>5 · Voice Narrator (MiMo TTS)</h2>
-    <p class="hint">Generate natural AI narration with expression. Use tags like <code>[crying]</code>, <code>[pause]</code>, <code>[laughing]</code>, <code>[sniffles]</code>, <code>[sigh]</code>, <code>[whisper]</code> inline for natural emotion. Supports singing with <code>[sing]</code>.</p>
-    <label>TTS API Key</label>
-    <input type="password" id="ttsKey" placeholder="MiMo TTS API key">
-    <div class="row">
-      <div><label>Voice</label><select id="ttsVoice">
-        <option value="Mia" selected>Mia (English ♀)</option>
-        <option value="Chloe">Chloe (English ♀)</option>
-        <option value="Milo">Milo (English ♂)</option>
-        <option value="Dean">Dean (English ♂)</option>
-        <option value="冰糖">冰糖 Bing Tang (中文 ♀)</option>
-        <option value="茉莉">茉莉 Mo Li (中文 ♀)</option>
-        <option value="苏打">苏打 Su Da (中文 ♂)</option>
-        <option value="白桦">白桦 Bai Hua (中文 ♂)</option></select></div>
-      <div><label>Output format</label><select id="ttsFormat">
-        <option value="wav" selected>WAV</option>
-        <option value="pcm16">PCM16 (streaming)</option></select></div>
-    </div>
-    <label>Style instructions (optional — natural language)</label>
-    <textarea id="ttsStyle" rows="3" placeholder="e.g. Speak like a dramatic movie trailer narrator. Deep voice, slow pace, with long pauses between sentences."></textarea>
-    <label>Narration text — use [tags] for expression</label>
-    <textarea id="ttsText" rows="8" placeholder="[crying] She's gone... she's really gone...[pause] but you know what's funny? [sniffles] She always said she'd outlive us all. [crying] God, I miss her so much."></textarea>
-    <div class="row" style="margin-top:12px;align-items:center;">
-      <div style="flex:0;"><button id="ttsBtn">Generate Voice 🎙️</button></div>
-      <div style="font-size:12px;" id="ttsStatus"></div>
-    </div>
-    <div id="ttsResult" style="margin-top:14px;display:none;">
-      <audio id="ttsAudio" controls style="width:100%;"></audio>
-      <div style="margin-top:8px;">
-        <a id="ttsDownload" href="#" download class="small" style="font-size:13px;text-decoration:underline;">⬇ Download audio</a>
-        <span id="ttsSize" style="font-size:11px;margin-left:12px;"></span>
+      <div class="row" style="margin-top:12px;align-items:center;">
+        <div style="flex:0;"><button class="alt small" id="countBtn">Count</button></div>
+        <div style="font-size:12px;" id="countInfo">0 prompts</div>
+        <div style="flex:0;"><button class="alt small" id="loadPrevBtn" title="Reuse images already in output/">↻ Load from Prev Project</button></div>
+        <div style="font-size:12px;" id="loadPrevInfo"></div>
       </div>
     </div>
-    <div class="note" style="margin-top:14px;"><b>Expression tags:</b> [crying] [laughing] [whisper] [shout] [pause] [sigh] [sniffles] [gasp] [breathing] [trembling] [sobbing] [singing] — mix freely in your text for natural, emotional narration.</div>
-  </div>
 
-  <div class="card">
-    <h2>6 · Auto Narrator (One-Click)</h2>
-    <p class="hint">After generating all images, click once to auto-generate narration text (GPT-5.5) + voice (MiMo TTS) from your prompts. No manual text needed!</p>
-    <div class="row">
-      <div><label>Narration language</label><select id="autoLang">
-        <option value="english" selected>English</option>
-        <option value="indonesian">Indonesian</option>
-        <option value="mandarin chinese">中文 (Mandarin)</option></select></div>
-      <div><label>Narration LLM model</label><select id="autoModel">
-        <option value="gpt-5.5" selected>GPT-5.5</option>
-        <option value="gpt-5.4">GPT-5.4</option>
-        <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option></select></div>
+    <div class="card">
+      <h2>2 · Generate images</h2>
+      <div class="row" style="margin-bottom:6px;">
+        <div><label>Character</label><select id="manualChar">
+          <option value="">Stickman (default)</option></select></div>
+      </div>
+      <div class="stats">
+        <span>Total <b id="mTotal">0</b></span>
+        <span>Done <b id="mDone">0</b></span>
+        <span>Failed <b id="mErr">0</b></span>
+        <span>Est. cost <b id="mCost">$0.00</b></span>
+      </div>
+      <div class="bar"><div id="mProg"></div></div>
+      <div class="row" style="align-items:center;">
+        <div style="flex:0;"><button id="mRunBtn">Start &rarr;</button></div>
+        <div style="flex:0;"><button class="alt" id="mStopBtn" disabled>Stop</button></div>
+        <div style="flex:0;"><button class="alt" id="mZipBtn" disabled>Download ZIP &darr;</button></div>
+      </div>
+      <div class="note">Images save to <code>output/</code> as they finish, numbered in order. Hover a finished tile to <b>redo</b> it.</div>
+      <div class="grid" id="mgrid" style="margin-top:14px;"></div>
     </div>
-    <label>Narration style (optional)</label>
-    <textarea id="autoStyle" rows="2" placeholder="e.g. Dramatic movie trailer narrator, deep voice, slow cinematic pace"></textarea>
-    <div class="row" style="margin-top:12px;align-items:center;">
-      <div style="flex:0;"><button id="autoNarrBtn">🎙️ Auto Generate Narrator</button></div>
-      <div style="font-size:12px;" id="autoNarrStatus"></div>
-    </div>
-    <div id="autoNarrResult" style="margin-top:14px;display:none;">
-      <label style="margin-top:0;">Generated narration text:</label>
-      <textarea id="autoNarrText" rows="6" readonly style="background:var(--paper2);"></textarea>
-      <audio id="autoNarrAudio" controls style="width:100%;margin-top:10px;"></audio>
-      <div style="margin-top:8px;">
-        <a id="autoNarrDownload" href="#" download style="font-size:13px;text-decoration:underline;">⬇ Download audio</a>
-        <span id="autoNarrSize" style="font-size:11px;margin-left:12px;"></span>
+
+    <div class="card">
+      <h2>3 · Voice Narrator (manual text)</h2>
+      <p class="hint">Type your own narration with expression tags like <code>[crying]</code>, <code>[pause]</code>, <code>[laughing]</code>, <code>[whisper]</code>, <code>[sigh]</code>. Voice & format come from Config.</p>
+      <label>Style instructions (optional)</label>
+      <textarea id="mTtsStyle" rows="2" placeholder="e.g. Dramatic movie trailer narrator. Deep voice, slow pace, long pauses."></textarea>
+      <label>Narration text — use [tags] for expression</label>
+      <textarea id="mTtsText" rows="6" placeholder="[crying] She's gone... [pause] but you know what's funny? [sniffles] She always said she'd outlive us all."></textarea>
+      <div class="row" style="margin-top:12px;align-items:center;">
+        <div style="flex:0;"><button id="mTtsBtn">Generate Voice 🎙️</button></div>
+        <div style="font-size:12px;" id="mTtsStatus"></div>
+      </div>
+      <div id="mTtsResult" style="margin-top:14px;display:none;">
+        <audio id="mTtsAudio" controls style="width:100%;"></audio>
+        <div style="margin-top:8px;">
+          <a id="mTtsDownload" href="#" download style="font-size:13px;text-decoration:underline;">⬇ Download audio</a>
+          <span id="mTtsSize" style="font-size:11px;margin-left:12px;"></span>
+        </div>
       </div>
     </div>
-    <div class="note" style="margin-top:14px;">Uses the same API key (Section 1) for text generation + TTS key from Section 5. Generates narration automatically from your image prompts using GPT-5.5, then converts to voice with MiMo TTS expression tags.</div>
+
+    <div class="card">
+      <h2>4 · Build Video (synced)</h2>
+      <p class="hint">Combines the images in <code>output/</code> with narration into one MP4. Claude writes one line per scene and <b>each image shows for exactly its own audio length</b> — perfect sync. Uses the prompts above + Config voice/model/language.</p>
+      <div class="row">
+        <div><label>Narration language</label><select id="mVidLang">
+          <option value="english" selected>English</option>
+          <option value="indonesian">Indonesian</option>
+          <option value="mandarin chinese">中文 (Mandarin)</option></select></div>
+        <div><label>Narration tone (optional)</label><input type="text" id="mVidStyle" placeholder="e.g. warm storyteller"></div>
+      </div>
+      <div class="bar"><div id="mVidProg"></div></div>
+      <div class="row" style="margin-top:6px;align-items:center;">
+        <div style="flex:0;"><button id="mBuildVidBtn">🎬 Build Video</button></div>
+        <div style="font-size:12px;" id="mBuildVidStatus"></div>
+      </div>
+      <div id="mBuildVidResult" style="margin-top:14px;display:none;">
+        <video id="mVidPlayer" controls style="width:100%;border:2px solid var(--ink);border-radius:3px;"></video>
+        <div style="margin-top:8px;"><a id="mVidDownload" href="#" download style="font-size:13px;text-decoration:underline;">⬇ Download video</a></div>
+        <label style="margin-top:10px;">Per-scene narration used</label>
+        <textarea id="mVidNarration" rows="5" readonly style="background:var(--paper2);"></textarea>
+      </div>
+      <div class="note" style="margin-top:14px;">Run step 2 (or Load from Prev Project) first so there are images in <code>output/</code>. Needs <code>ffmpeg</code> + a TTS key in Config.</div>
+    </div>
   </div>
 </div>
 
 <script>
 const $=id=>document.getElementById(id);
-let poll=null, selectedFrames=[], anchorSlot=0;
+const postJSON=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
+const getJSON=u=>fetch(u).then(r=>r.json());
 
-// detect ffmpeg
-fetch('/api/env').then(r=>r.json()).then(d=>{
-  if(!d.ffmpeg){ $('noFfmpeg').style.display='block'; $('vidBtn').disabled=true;
-    $('vidStatus').textContent='ffmpeg not found — use direct image upload below'; }
+// ---- persist config in localStorage (so you don't re-configure each time) ----
+const PERSIST_IDS=['apiKey','ttsKey','model','quality','size','retries','delay',
+  'llmModel','styleSuffix','negative','usePrev','ttsVoice','ttsFormat',
+  'autoScenes','autoLang','autoStyle','autoVoice','autoChar','manualChar',
+  'mVidLang','mVidStyle'];
+const LS_KEY='sketchReactorConfig';
+function saveConfig(){
+  const o={};
+  PERSIST_IDS.forEach(id=>{const el=$(id);if(!el)return;o[id]=el.type==='checkbox'?el.checked:el.value;});
+  try{localStorage.setItem(LS_KEY,JSON.stringify(o));}catch(e){}
+}
+function restoreConfig(){
+  let o; try{o=JSON.parse(localStorage.getItem(LS_KEY)||'{}');}catch(e){o={};}
+  PERSIST_IDS.forEach(id=>{const el=$(id);if(!el||!(id in o))return;
+    if(el.type==='checkbox')el.checked=o[id];else el.value=o[id];});
+}
+restoreConfig();
+PERSIST_IDS.forEach(id=>{const el=$(id);if(!el)return;
+  el.addEventListener('input',saveConfig); el.addEventListener('change',saveConfig);});
+$('clearCfgBtn').onclick=()=>{
+  if(!confirm('Forget all saved config (including keys) in this browser?'))return;
+  try{localStorage.removeItem(LS_KEY);}catch(e){} location.reload();
+};
+
+// ---- tabs ----
+document.querySelectorAll('.tabbtn').forEach(b=>b.onclick=()=>{
+  const t=b.dataset.tab;
+  document.querySelectorAll('.tabbtn').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
+  document.querySelectorAll('.tabpane').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
 });
 
+// ---- config getters ----
+const apiKey=()=>$('apiKey').value.trim();
+const ttsKey=()=>$('ttsKey').value.trim();
+const llmModel=()=>$('llmModel').value.trim();
+const voice=()=>$('ttsVoice').value;
+const fmt=()=>$('ttsFormat').value;
+function imgSettings(){
+  return {model:$('model').value,retries:$('retries').value,delay:$('delay').value,
+    quality:$('quality').value,size:$('size').value,
+    style_suffix:$('styleSuffix').value,negative:$('negative').value,
+    use_previous:$('usePrev').checked};
+}
 function parsePrompts(){
   const raw=$('prompts').value.trim();
   return raw?raw.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean):[];
 }
 function cost(n){
-  const m=$('model').value;
-  const q=($('quality')||{}).value||'low';
-  const table={
-    'gpt-image-2':{low:0.02,medium:0.07,high:0.19},
+  const m=$('model').value,q=$('quality').value||'low';
+  const table={'gpt-image-2':{low:0.02,medium:0.07,high:0.19},
     'gpt-image-1.5':{low:0.015,medium:0.05,high:0.15},
-    'gpt-image-1-mini':{low:0.005,medium:0.01,high:0.02}
-  };
-  const per=(table[m]||table['gpt-image-2'])[q];
-  return '~$'+(n*per).toFixed(2);
+    'gpt-image-1-mini':{low:0.005,medium:0.01,high:0.02}};
+  return '~$'+(n*(table[m]||table['gpt-image-2'])[q]).toFixed(2);
 }
-$('countBtn').onclick=()=>{const p=parsePrompts();$('countInfo').textContent=p.length+' prompts';$('sCost').textContent=cost(p.length);};
-$('model').onchange=()=>$('sCost').textContent=cost(parsePrompts().length);
-$('quality').onchange=()=>$('sCost').textContent=cost(parsePrompts().length);
 
-// test key
+// ---- ffmpeg detect ----
+fetch('/api/env').then(r=>r.json()).then(d=>{
+  if(!d.ffmpeg){$('noFfmpeg').style.display='block';$('vidBtn').disabled=true;
+    $('vidStatus').textContent='ffmpeg not found — use direct image upload';}
+});
+
+// ---- model list ----
+let modelsLoaded=false;
+async function loadModels(){
+  const k=apiKey(); if(!k||modelsLoaded)return;
+  try{
+    const d=await postJSON('/api/models',{api_key:k});
+    if(d.ok&&d.models){const dl=$('modelList');dl.innerHTML='';
+      d.models.forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});
+      modelsLoaded=true;}
+  }catch(e){}
+}
+
+// ---- test key ----
 $('testBtn').onclick=async()=>{
-  const k=$('apiKey').value.trim();
-  if(!k){$('testInfo').textContent='enter a key first';return;}
+  const k=apiKey(); if(!k){$('testInfo').textContent='enter a key first';return;}
   $('testInfo').textContent='checking...';
-  const d=await(await fetch('/api/test_key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:k})})).json();
-  $('testInfo').textContent = d.ok ? '✓ key works' : '✗ '+(d.error||'failed');
-  $('testInfo').style.color = d.ok ? '#1f9d55' : '#e63329';
+  const d=await postJSON('/api/test_key',{api_key:k});
+  $('testInfo').textContent=d.ok?'✓ key works':'✗ '+(d.error||'failed');
+  $('testInfo').style.color=d.ok?'#1f9d55':'#e63329';
+  if(d.ok)loadModels();
 };
 
-// video upload -> frames
+// ---- style anchors (video frames) ----
+let selectedFrames=[],anchorSlot=0;
 $('vidBtn').onclick=()=>$('vidInput').click();
 $('vidInput').onchange=async e=>{
   const f=e.target.files[0]; if(!f)return;
   $('vidStatus').textContent='extracting frames...';
   const fd=new FormData(); fd.append('file',f);
-  const r=await fetch('/api/upload_video',{method:'POST',body:fd});
-  const d=await r.json();
+  const d=await(await fetch('/api/upload_video',{method:'POST',body:fd})).json();
   if(d.error){$('vidStatus').textContent=d.error;return;}
   $('vidStatus').textContent='click 1-3 frames to lock the style';
   const g=$('frames'); g.innerHTML=''; selectedFrames=[];
   d.frames.forEach(fn=>{
     const div=document.createElement('div'); div.className='frame';
     div.innerHTML=`<img src="/frames/${fn}"><span class="pick">&check;</span>`;
-    div.onclick=()=>toggleFrame(fn,div);
-    g.appendChild(div);
+    div.onclick=()=>toggleFrame(fn,div); g.appendChild(div);
   });
 };
 function toggleFrame(fn,div){
   const i=selectedFrames.indexOf(fn);
   if(i>=0){selectedFrames.splice(i,1);div.classList.remove('sel');}
-  else{ if(selectedFrames.length>=3){alert('Max 3 style frames.');return;}
-        selectedFrames.push(fn);div.classList.add('sel'); }
-  fetch('/api/set_anchors',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({frames:selectedFrames})});
+  else{if(selectedFrames.length>=3){alert('Max 3 style frames.');return;}
+    selectedFrames.push(fn);div.classList.add('sel');}
+  postJSON('/api/set_anchors',{frames:selectedFrames});
 }
-
-// direct image anchors (no ffmpeg)
 $('imgBtn')&&($('imgBtn').onclick=()=>$('imgInput').click());
 $('imgInput')&&($('imgInput').onchange=async e=>{
   const f=e.target.files[0]; if(!f)return;
@@ -296,150 +456,225 @@ $('imgInput')&&($('imgInput').onchange=async e=>{
   $('imgStatus').textContent=`uploaded style image (${anchorSlot===0?3:anchorSlot}/3)`;
 });
 
-function buildGrid(n){
-  const g=$('grid'); g.innerHTML='';
+// ---- shared grid engine ----
+function buildGrid(n,grid,prefix){
+  grid.innerHTML='';
   for(let i=0;i<n;i++){
-    const t=document.createElement('div');
-    t.className='tile pending'; t.id='tile'+i;
-    t.innerHTML=`<span class="num">${String(i+1).padStart(3,'0')}</span><span class="st">queued</span><button class="re" onclick="regen(${i})">redo</button>`;
-    g.appendChild(t);
+    const t=document.createElement('div'); t.className='tile pending'; t.id=prefix+i;
+    t.innerHTML=`<span class="num">${String(i+1).padStart(3,'0')}</span><span class="st">queued</span>`;
+    grid.appendChild(t);
   }
 }
-
-async function start(){
-  const api_key=$('apiKey').value.trim();
-  if(!api_key){alert('Enter your Gemini API key first.');return;}
-  const prompts=parsePrompts();
-  if(!prompts.length){alert('Paste some prompts first.');return;}
-  const settings={
-    model:$('model').value, retries:$('retries').value, delay:$('delay').value,
-    quality:$('quality').value, size:$('size').value,
-    style_suffix:$('styleSuffix').value, negative:$('negative').value,
-    use_previous:$('usePrev').checked
-  };
-  buildGrid(prompts.length);
-  $('sTotal').textContent=prompts.length; $('sCost').textContent=cost(prompts.length);
-  const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({api_key,prompts,settings})});
-  const d=await r.json();
-  if(d.error){alert(d.error);return;}
-  $('runBtn').disabled=true; $('stopBtn').disabled=false;
-  startPolling();
-}
-function startPolling(){ if(poll)clearInterval(poll); poll=setInterval(refresh,1200); refresh(); }
-async function refresh(){
-  const d=await(await fetch('/api/status')).json();
-  $('sTotal').textContent=d.total; $('sDone').textContent=d.done; $('sErr').textContent=d.error;
-  $('prog').style.width=d.total?((d.done/d.total)*100)+'%':'0%';
+function renderItems(d,prefix,withRedo){
   d.items.forEach(it=>{
-    const t=$('tile'+it.idx); if(!t)return;
-    if(t.dataset.status===it.status && t.dataset.file===(it.file||''))return;
+    const t=$(prefix+it.idx); if(!t)return;
+    if(t.dataset.status===it.status&&t.dataset.file===(it.file||''))return;
     t.dataset.status=it.status; t.dataset.file=it.file||'';
     t.className='tile '+it.status;
-    if(it.status==='error' && it.error){ t.title=it.error; } else { t.title=''; }
+    t.title=(it.status==='error'&&it.error)?it.error:'';
     const lbl=it.status==='done'?'ready':it.status==='busy'?'…':it.status==='error'?'failed':'queued';
     let h=`<span class="num">${String(it.idx+1).padStart(3,'0')}</span>`;
     if(it.file)h+=`<img src="/output/${it.file}?t=${Date.now()}">`;
-    h+=`<span class="st">${lbl}</span><button class="re" onclick="regen(${it.idx})">redo</button>`;
+    h+=`<span class="st">${lbl}</span>`;
+    if(withRedo)h+=`<button class="re" onclick="regen(${it.idx})">redo</button>`;
     t.innerHTML=h;
   });
-  $('zipBtn').disabled=d.done===0;
-  if(!d.running){clearInterval(poll);poll=null;$('runBtn').disabled=false;$('stopBtn').disabled=true;}
+}
+function pollUntilDone(url,fn){
+  return new Promise(res=>{
+    const tick=async()=>{
+      let d; try{d=await getJSON(url);}catch(e){return setTimeout(tick,1500);}
+      let done=false; try{done=fn(d);}catch(e){done=true;}
+      if(done)res(d); else setTimeout(tick,1300);
+    }; tick();
+  });
+}
+
+// ============================ MANUAL ============================
+$('countBtn').onclick=()=>{const p=parsePrompts();$('countInfo').textContent=p.length+' prompts';$('mCost').textContent=cost(p.length);};
+$('model').onchange=()=>$('mCost').textContent=cost(parsePrompts().length);
+$('quality').onchange=()=>$('mCost').textContent=cost(parsePrompts().length);
+
+let manualPoll=null;
+$('mRunBtn').onclick=async()=>{
+  const key=apiKey(); if(!key){alert('Enter your Image API key in the Config tab.');return;}
+  const prompts=parsePrompts(); if(!prompts.length){alert('Enter some prompts first.');return;}
+  buildGrid(prompts.length,$('mgrid'),'mtile');
+  $('mTotal').textContent=prompts.length; $('mCost').textContent=cost(prompts.length);
+  const r=await postJSON('/api/start',{api_key:key,prompts,settings:{...imgSettings(),character:$('manualChar').value}});
+  if(r.error){alert(r.error);return;}
+  $('mRunBtn').disabled=true; $('mStopBtn').disabled=false;
+  if(manualPoll)clearInterval(manualPoll); manualPoll=setInterval(manualRefresh,1200); manualRefresh();
+};
+async function manualRefresh(){
+  const d=await getJSON('/api/status');
+  $('mTotal').textContent=d.total; $('mDone').textContent=d.done; $('mErr').textContent=d.error;
+  $('mProg').style.width=d.total?((d.done/d.total)*100)+'%':'0%';
+  renderItems(d,'mtile',true);
+  $('mZipBtn').disabled=d.done===0;
+  if(!d.running){clearInterval(manualPoll);manualPoll=null;$('mRunBtn').disabled=false;$('mStopBtn').disabled=true;}
 }
 window.regen=async function(idx){
-  const api_key=$('apiKey').value.trim();
-  const d=await(await fetch('/api/regen',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({idx,api_key})})).json();
-  if(d.error){alert(d.error);return;} refresh();
+  const d=await postJSON('/api/regen',{idx,api_key:apiKey()});
+  if(d.error){alert(d.error);return;} manualRefresh();
 };
-$('runBtn').onclick=start;
-$('stopBtn').onclick=()=>fetch('/api/stop',{method:'POST'});
-$('zipBtn').onclick=()=>window.location='/api/zip';
+$('mStopBtn').onclick=()=>fetch('/api/stop',{method:'POST'});
+$('mZipBtn').onclick=()=>window.location='/api/zip';
 
-// TTS Voice Narrator
-$('ttsBtn').onclick=async()=>{
-  const api_key=$('ttsKey').value.trim();
-  const text=$('ttsText').value.trim();
-  if(!api_key){alert('Enter your TTS API key.');return;}
-  if(!text){alert('Enter narration text.');return;}
-  $('ttsBtn').disabled=true;
-  $('ttsStatus').textContent='Generating voice...';
-  $('ttsResult').style.display='none';
+$('loadPrevBtn').onclick=async()=>{
+  $('loadPrevInfo').textContent='loading...';
   try{
-    const body={
-      api_key,
-      text,
-      voice:$('ttsVoice').value,
-      style:$('ttsStyle').value.trim(),
-      format:$('ttsFormat').value,
-    };
-    const r=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const d=await r.json();
-    if(d.error){
-      $('ttsStatus').textContent='❌ '+d.error;
-      $('ttsStatus').style.color='#e63329';
-    }else{
-      $('ttsStatus').textContent='✅ Voice generated!';
-      $('ttsStatus').style.color='#1f9d55';
-      $('ttsAudio').src='/output/'+d.file;
-      $('ttsDownload').href='/output/'+d.file;
-      $('ttsSize').textContent=(d.size/1024).toFixed(1)+' KB';
-      $('ttsResult').style.display='block';
-    }
-  }catch(e){
-    $('ttsStatus').textContent='❌ '+e.message;
-    $('ttsStatus').style.color='#e63329';
-  }
-  $('ttsBtn').disabled=false;
+    const d=await getJSON('/api/load_previous');
+    if(!d.images||!d.images.length){$('loadPrevInfo').textContent='no images in output/';return;}
+    if(d.prompts&&d.prompts.length){$('prompts').value=d.prompts.join('\n\n');$('countInfo').textContent=d.prompts.length+' prompts';}
+    const g=$('mgrid'); g.innerHTML='';
+    d.images.forEach((fn,i)=>{
+      const t=document.createElement('div'); t.className='tile done'; t.id='mtile'+i;
+      t.dataset.status='done'; t.dataset.file=fn;
+      t.innerHTML=`<span class="num">${String(i+1).padStart(3,'0')}</span><img src="/output/${fn}?t=${Date.now()}"><span class="st">ready</span><button class="re" onclick="regen(${i})">redo</button>`;
+      g.appendChild(t);
+    });
+    $('mTotal').textContent=d.images.length; $('mDone').textContent=d.images.length; $('mErr').textContent=0;
+    $('mProg').style.width='100%'; $('mZipBtn').disabled=false;
+    $('loadPrevInfo').textContent='✅ loaded '+d.images.length+' images'; $('loadPrevInfo').style.color='#1f9d55';
+  }catch(e){$('loadPrevInfo').textContent='❌ '+e.message;}
 };
 
-// Auto Narrator (One-Click)
-$('autoNarrBtn').onclick=async()=>{
-  const api_key=$('apiKey').value.trim();
-  const tts_key=$('ttsKey').value.trim();
-  const prompts=parsePrompts();
-  if(!api_key){alert('Enter your image API key in Section 1.');return;}
-  if(!tts_key){alert('Enter your TTS API key in Section 5.');return;}
-  if(!prompts.length){alert('Paste prompts in Section 3 first!');return;}
-  $('autoNarrBtn').disabled=true;
-  $('autoNarrStatus').textContent='Generating narration with GPT-5.5...';
-  $('autoNarrStatus').style.color='var(--ink)';
-  $('autoNarrResult').style.display='none';
-  try{
-    const body={
-      api_key,
-      tts_key,
-      prompts,
-      voice:$('ttsVoice').value,
-      style:$('autoStyle').value.trim(),
-      narration_model:$('autoModel').value,
-      format:$('ttsFormat').value,
-      language:$('autoLang').value,
-    };
-    const r=await fetch('/api/auto_narrator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const d=await r.json();
-    if(d.error){
-      $('autoNarrStatus').textContent='❌ '+d.error;
-      $('autoNarrStatus').style.color='#e63329';
-      // Show narration text if available even on TTS error
-      if(d.narration){
-        $('autoNarrText').value=d.narration;
-        $('autoNarrResult').style.display='block';
-      }
-    }else{
-      $('autoNarrStatus').textContent='✅ Narrator generated!';
-      $('autoNarrStatus').style.color='#1f9d55';
-      $('autoNarrText').value=d.narration;
-      $('autoNarrAudio').src='/output/'+d.file;
-      $('autoNarrDownload').href='/output/'+d.file;
-      $('autoNarrSize').textContent=(d.size/1024).toFixed(1)+' KB';
-      $('autoNarrResult').style.display='block';
-    }
-  }catch(e){
-    $('autoNarrStatus').textContent='❌ '+e.message;
-    $('autoNarrStatus').style.color='#e63329';
-  }
-  $('autoNarrBtn').disabled=false;
+// manual voice
+$('mTtsBtn').onclick=async()=>{
+  const k=ttsKey(); const text=$('mTtsText').value.trim();
+  if(!k){alert('Enter your TTS API key in the Config tab.');return;}
+  if(!text){alert('Enter narration text first.');return;}
+  $('mTtsBtn').disabled=true; $('mTtsStatus').textContent='Generating voice...'; $('mTtsResult').style.display='none';
+  const d=await postJSON('/api/tts',{api_key:k,text,voice:voice(),style:$('mTtsStyle').value.trim(),format:fmt()});
+  if(d.error){$('mTtsStatus').textContent='❌ '+d.error;$('mTtsStatus').style.color='#e63329';}
+  else{$('mTtsStatus').textContent='✅ Voice generated!';$('mTtsStatus').style.color='#1f9d55';
+    $('mTtsAudio').src='/output/'+d.file;$('mTtsDownload').href='/output/'+d.file;
+    $('mTtsSize').textContent=(d.size/1024).toFixed(1)+' KB';$('mTtsResult').style.display='block';}
+  $('mTtsBtn').disabled=false;
+};
+
+// manual build video
+let mVidPoll=null;
+$('mBuildVidBtn').onclick=async()=>{
+  if(!apiKey()){alert('Enter your Image/LLM API key in the Config tab.');return;}
+  if(!ttsKey()){alert('Enter your TTS API key in the Config tab.');return;}
+  $('mBuildVidBtn').disabled=true; $('mBuildVidResult').style.display='none';
+  $('mBuildVidStatus').textContent='Starting...'; $('mBuildVidStatus').style.color='var(--ink)';
+  loadModels();
+  const r=await postJSON('/api/build_video',{api_key:apiKey(),tts_key:ttsKey(),prompts:parsePrompts(),
+    voice:voice(),style:$('mVidStyle').value.trim(),language:$('mVidLang').value,
+    narration_model:llmModel(),format:'wav'});
+  if(r.error){$('mBuildVidBtn').disabled=false;$('mBuildVidStatus').textContent='❌ '+r.error;$('mBuildVidStatus').style.color='#e63329';return;}
+  if(mVidPoll)clearInterval(mVidPoll);
+  mVidPoll=setInterval(()=>pollMVideo(),1500); pollMVideo();
+};
+async function pollMVideo(){
+  const d=await getJSON('/api/video_status');
+  $('mVidProg').style.width=(d.total?Math.round((d.done/d.total)*100):0)+'%';
+  if(d.running){$('mBuildVidStatus').textContent='⏳ '+(d.stage||'working')+' ('+d.done+'/'+d.total+')';$('mBuildVidStatus').style.color='var(--ink)';return;}
+  clearInterval(mVidPoll); mVidPoll=null; $('mBuildVidBtn').disabled=false;
+  if(d.error){$('mBuildVidStatus').textContent='❌ '+d.error;$('mBuildVidStatus').style.color='#e63329';
+    if(d.narration&&d.narration.length){$('mVidNarration').value=d.narration.join('\n');$('mVidPlayer').style.display='none';$('mBuildVidResult').style.display='block';}return;}
+  if(d.file){$('mBuildVidStatus').textContent='✅ Video ready!';$('mBuildVidStatus').style.color='#1f9d55';$('mVidProg').style.width='100%';
+    $('mVidPlayer').style.display='block';$('mVidPlayer').src='/output/'+d.file+'?t='+Date.now();
+    $('mVidDownload').href='/output/'+d.file;$('mVidNarration').value=(d.narration||[]).join('\n');$('mBuildVidResult').style.display='block';}
+}
+
+// ============================ CHARACTERS ============================
+async function loadCharacters(){
+  let list=[];
+  try{const d=await getJSON('/api/characters'); if(d.ok)list=d.characters;}catch(e){}
+  const g=$('charGallery'); g.innerHTML='';
+  $('charEmpty').style.display=list.length?'none':'block';
+  list.forEach(c=>{
+    const div=document.createElement('div');
+    div.style.cssText='border:2px solid var(--ink);border-radius:3px;background:#fff;overflow:hidden;';
+    div.innerHTML=`<img src="${c.sheet}?t=${Date.now()}" style="width:100%;display:block;aspect-ratio:1;object-fit:contain;background:#fff;border-bottom:2px solid var(--ink);">
+      <div style="padding:6px 8px;font-size:11px;line-height:1.4;">
+        <b>${c.name}</b><br><span style="opacity:.7;">${(c.description||'').slice(0,90)}</span><br>
+        <a href="#" data-id="${c.id}" class="delChar" style="color:var(--accent);">✕ delete</a></div>`;
+    g.appendChild(div);
+  });
+  g.querySelectorAll('.delChar').forEach(a=>a.onclick=async e=>{
+    e.preventDefault(); if(!confirm('Delete this character?'))return;
+    await postJSON('/api/delete_character',{id:a.dataset.id}); loadCharacters();
+  });
+  // refresh the pickers in both build tabs, keeping current selection
+  ['autoChar','manualChar'].forEach(id=>{
+    const sel=$(id); const cur=sel.value;
+    sel.innerHTML='<option value="">Stickman (default)</option>';
+    list.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name;sel.appendChild(o);});
+    sel.value=cur;
+  });
+  restoreConfig();  // re-apply any saved character selection now options exist
+}
+loadCharacters();
+
+$('genCharBtn').onclick=async()=>{
+  const key=apiKey(),name=$('charName').value.trim(),desc=$('charDesc').value.trim();
+  if(!key){alert('Enter your Image API key in the Config tab.');return;}
+  if(!name||!desc){alert('Enter a character name and description first.');return;}
+  $('genCharBtn').disabled=true;
+  $('genCharStatus').textContent='Generating character sheet… (10–60s)'; $('genCharStatus').style.color='var(--ink)';
+  const d=await postJSON('/api/generate_character',{api_key:key,name,description:desc,settings:imgSettings()});
+  if(d.error){$('genCharStatus').textContent='❌ '+d.error;$('genCharStatus').style.color='#e63329';}
+  else{$('genCharStatus').textContent='✅ Saved: '+d.character.name;$('genCharStatus').style.color='#1f9d55';
+    $('charName').value=''; $('charDesc').value='';
+    await loadCharacters();
+    $('autoChar').value=d.character.id; $('manualChar').value=d.character.id; saveConfig();}
+  $('genCharBtn').disabled=false;
+};
+
+// ============================ AUTO (one-click chained) ============================
+function autoStage(msg,color){$('autoStatus').textContent=msg;$('autoStatus').style.color=color||'var(--ink)';}
+function autoFail(msg){autoStage('❌ '+msg,'#e63329');$('autoBtn').disabled=false;}
+
+$('autoBtn').onclick=async()=>{
+  const key=apiKey(),tk=ttsKey(),title=$('autoTitle').value.trim();
+  if(!key){alert('Enter your Image/LLM API key in the Config tab.');return;}
+  if(!tk){alert('Enter your TTS API key in the Config tab.');return;}
+  if(!title){alert('Enter a title first.');return;}
+  $('autoBtn').disabled=true;
+  $('autoResult').style.display='none'; $('autoProg').style.width='0%';
+  loadModels();
+
+  // 1) title -> prompts
+  autoStage('1/3 · Writing prompts from the title…');
+  const gp=await postJSON('/api/generate_prompts',{api_key:key,title,count:+$('autoScenes').value,
+    language:$('autoLang').value,model:llmModel()});
+  if(gp.error)return autoFail(gp.error);
+  const prompts=gp.prompts;
+  $('autoPrompts').value=prompts.join('\n\n'); $('autoPromptsWrap').style.display='block';
+
+  // 2) generate images
+  autoStage('2/3 · Generating '+prompts.length+' images…');
+  buildGrid(prompts.length,$('agrid'),'atile'); $('agridWrap').style.display='block';
+  const st=await postJSON('/api/start',{api_key:key,prompts,settings:{...imgSettings(),character:$('autoChar').value}});
+  if(st.error)return autoFail(st.error);
+  const imgDone=await pollUntilDone('/api/status',d=>{
+    autoStage('2/3 · Generating images… ('+d.done+'/'+d.total+')');
+    $('autoProg').style.width=d.total?((d.done/d.total)*50)+'%':'0%';  // images = first half of bar
+    renderItems(d,'atile',false);
+    return !d.running;
+  });
+  if(!imgDone.done){return autoFail('No images were generated successfully.');}
+
+  // 3) narration + synced video
+  autoStage('3/3 · Writing narration + building video…');
+  const bv=await postJSON('/api/build_video',{api_key:key,tts_key:tk,prompts,voice:($('autoVoice').value||voice()),
+    style:$('autoStyle').value.trim(),language:$('autoLang').value,narration_model:llmModel(),format:'wav'});
+  if(bv.error)return autoFail(bv.error);
+  await pollUntilDone('/api/video_status',d=>{
+    if(d.running){autoStage('3/3 · '+(d.stage||'working')+' ('+d.done+'/'+d.total+')');
+      $('autoProg').style.width=(50+(d.total?Math.round((d.done/d.total)*50):0))+'%'; return false;}
+    if(d.error){autoFail(d.error);return true;}
+    if(d.file){$('autoProg').style.width='100%';
+      $('autoVideo').src='/output/'+d.file+'?t='+Date.now(); $('autoVideoDl').href='/output/'+d.file;
+      $('autoNarr').value=(d.narration||[]).join('\n'); $('autoResult').style.display='block';
+      autoStage('✅ Done! Video ready.','#1f9d55'); $('autoBtn').disabled=false;}
+    return true;
+  });
 };
 </script>
 </body>

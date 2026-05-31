@@ -1,12 +1,20 @@
+# Python / virtualenv (this project also has venv artifacts at the repo root)
 __pycache__/
-*.pyc
+*.py[cod]
+.venv/
+venv/
+bin/
+include/
+lib/
+lib64/
+pyvenv.cfg
+
+# Generated output & assets — do NOT push
 output/
 frames/
 anchors/
-*.mp4
-*.png
-*.jpg
-*.wav
-*.pcm
-.env
-venv/
+characters/
+sample_video.mp4
+
+# OS
+.DS_Store
