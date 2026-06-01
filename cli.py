@@ -210,7 +210,7 @@ def cmd_video(args):
 
     res = core.build_video(key, tts, prompts, voice=args.voice, style=args.style or "",
                            language=args.lang, narration_model=args.model or None,
-                           on_progress=on_progress)
+                           subtitles=args.subtitles, on_progress=on_progress)
     path = core.OUTPUT_DIR / res["file"]
     if args.out:
         import shutil
@@ -272,7 +272,7 @@ def _auto_params(args):
             "model": args.model or "", "quality": args.quality, "size": args.size,
             "retries": args.retries, "delay": args.delay,
             "character": args.character or "", "no_prev": args.no_prev,
-            "no_thumbnail": args.no_thumbnail}
+            "no_thumbnail": args.no_thumbnail, "subtitles": args.subtitles}
 
 
 def cmd_thumbnail(args):
@@ -333,7 +333,7 @@ def cmd_auto(args):
     # NOTE: --style is the image art style; narration tone stays empty here
     res = core.build_video(key, tts, prompts, voice=args.voice, style="",
                            language=args.lang, narration_model=args.model or None,
-                           on_progress=on_progress)
+                           subtitles=args.subtitles, on_progress=on_progress)
     path = core.OUTPUT_DIR / res["file"]
     if args.out:
         import shutil
@@ -434,6 +434,8 @@ def build_parser():
     sp.add_argument("--style", default="", help="narration tone")
     sp.add_argument("--model", default="", help="narration LLM model id")
     sp.add_argument("--job", default="", help="build from this job's images")
+    sp.add_argument("--subtitles", action="store_true",
+                    help="burn big bold captions (the narration) onto the video")
     sp.add_argument("--out", default="", help="copy final video here")
     sp.set_defaults(func=cmd_video)
 
@@ -452,6 +454,8 @@ def build_parser():
     sp.add_argument("--style-hint", default="", help="story/tone hint for prompts")
     add_img_opts(sp)
     sp.add_argument("--out", default="", help="copy final video here")
+    sp.add_argument("--subtitles", action="store_true",
+                    help="burn big bold captions (the narration) onto the video")
     sp.add_argument("--no-thumbnail", action="store_true",
                     help="skip generating the YouTube thumbnail")
     sp.add_argument("--async", dest="async_job", action="store_true",

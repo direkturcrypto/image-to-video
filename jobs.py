@@ -259,7 +259,8 @@ def run_job(jid):
         res = core.build_video(
             api_key, tts_key, prompts, voice=p.get("voice", "Mia"),
             style=narration_tone, language=p.get("lang", "english"),
-            narration_model=p.get("model") or None, on_progress=on_progress)
+            narration_model=p.get("model") or None,
+            subtitles=bool(p.get("subtitles")), on_progress=on_progress)
 
         result = {"video": res["file"], "video_path": str(d / res["file"]),
                   "narration": res["narration"], "scenes": len(res["narration"]),

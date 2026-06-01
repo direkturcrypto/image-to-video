@@ -89,6 +89,72 @@ def has_ffmpeg():
 
 
 # --------------------------------------------------------------------------
+# Big bold burned-in captions (viral style) — rendered with Pillow, because
+# this ffmpeg build has no drawtext/libass.
+# --------------------------------------------------------------------------
+# Prefer punchy bold fonts; fall back across macOS / Linux / Windows.
+FONT_CANDIDATES = [
+    "/System/Library/Fonts/Supplemental/Impact.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/Library/Fonts/Arial Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "C:/Windows/Fonts/impact.ttf",
+    "C:/Windows/Fonts/arialbd.ttf",
+]
+
+
+def _load_font(size):
+    from PIL import ImageFont
+    for p in FONT_CANDIDATES:
+        if Path(p).exists():
+            try:
+                return ImageFont.truetype(p, size)
+            except Exception:
+                pass
+    return ImageFont.load_default()
+
+
+def caption_image(src_png, text, dest_png, position="bottom"):
+    """Draw a BIG bold caption (white text, thick black outline, uppercase,
+    centered, word-wrapped) onto a copy of src_png and save to dest_png."""
+    from PIL import Image, ImageDraw
+    im = Image.open(src_png).convert("RGB")
+    text = " ".join((text or "").split()).upper()
+    if not text:
+        im.save(dest_png)
+        return
+    W, H = im.size
+    d = ImageDraw.Draw(im)
+    size = max(28, int(H * 0.085))
+    font = _load_font(size)
+    stroke = max(2, int(size * 0.16))
+
+    # greedy word-wrap to ~88% of width (leave room for the stroke)
+    maxw = W * 0.88
+    words, lines, cur = text.split(" "), [], ""
+    for w in words:
+        t = (cur + " " + w).strip()
+        if not cur or d.textlength(t, font=font) + 2 * stroke <= maxw:
+            cur = t
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+
+    asc, desc = font.getmetrics()
+    lh = asc + desc + int(size * 0.18)
+    block = lh * len(lines)
+    y0 = (H - block) // 2 if position == "center" else int(H * 0.96 - block)
+    for i, ln in enumerate(lines):
+        tw = d.textlength(ln, font=font) + 2 * stroke
+        d.text(((W - tw) / 2, y0 + i * lh), ln, font=font, fill="white",
+               stroke_width=stroke, stroke_fill="black")
+    im.save(dest_png)
+
+
+# --------------------------------------------------------------------------
 # LLM + TTS
 # --------------------------------------------------------------------------
 def chat_llm(api_key, model, messages, temperature=0.8, max_tokens=2000):
@@ -601,7 +667,7 @@ def write_narration(api_key, n, scene_prompts, language="english", style="",
 # --------------------------------------------------------------------------
 def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
                 language="english", narration_model=None, tts_model=None,
-                on_progress=None, should_stop=None):
+                subtitles=False, on_progress=None, should_stop=None):
     """Build one synced MP4 from the images in OUTPUT_DIR + per-scene narration.
 
     Each image is held for exactly its own narration audio length (perfect
@@ -645,11 +711,20 @@ def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
         apath = work / f"seg_{i:03d}.wav"
         apath.write_bytes(audio)
         seg = work / f"seg_{i:03d}.mp4"
+        # optionally burn a big bold caption (the narration line) onto the image
+        img_in = OUTPUT_DIR / img
+        if subtitles and line.strip():
+            cap = work / f"cap_{i:03d}.png"
+            try:
+                caption_image(str(OUTPUT_DIR / img), line, str(cap))
+                img_in = cap
+            except Exception as e:
+                _log(f"[WARN] caption render failed (scene {i+1}): {e}")
         # image duration = its own audio length, exactly (perfect sync, no speed
         # change). Fast pacing comes from the short narration lines, not editing.
         cmd = [
             "ffmpeg", "-v", "error", "-y",
-            "-loop", "1", "-i", str(OUTPUT_DIR / img),
+            "-loop", "1", "-i", str(img_in),
             "-i", str(apath),
             "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p",
             "-r", "25",                            # constant fps for clean concat

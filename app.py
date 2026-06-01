@@ -313,13 +313,14 @@ def api_tts_voices():
 # Video build job
 # --------------------------------------------------------------------------
 def build_video_job(api_key, tts_key, prompts, voice, style, language,
-                    narration_model, tts_model):
+                    narration_model, tts_model, subtitles=False):
     def on_progress(stage, done, total, narration):
         _vset(stage=stage, done=done, total=total, narration=narration)
     try:
         res = core.build_video(api_key, tts_key, prompts, voice=voice, style=style,
                                language=language, narration_model=narration_model,
-                               tts_model=tts_model, on_progress=on_progress,
+                               tts_model=tts_model, subtitles=subtitles,
+                               on_progress=on_progress,
                                should_stop=lambda: VIDEO.get("stop"))
         _vset(running=False, stage="done", file=res["file"],
               narration=res["narration"], error=None)
@@ -352,7 +353,8 @@ def api_build_video():
         args=(api_key, tts_key, prompts, d.get("voice", "Mia"),
               (d.get("style") or "").strip(), d.get("language", "english"),
               (d.get("narration_model") or "").strip() or None,
-              (d.get("tts_model") or "").strip() or None),
+              (d.get("tts_model") or "").strip() or None,
+              bool(d.get("subtitles"))),
         daemon=True).start()
     return jsonify({"ok": True})
 

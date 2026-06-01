@@ -75,6 +75,8 @@ Precedence: flag > env var > `.env`.
 Common flags (work after the subcommand): `--api-key`, `--tts-key`, `--quiet`.
 Image flags (on `generate`/`character`/`auto`): `--model --quality {low,medium,high}
 --size --retries --delay --style --negative --no-prev --character <id>`.
+`auto`/`video` also take `--subtitles` to burn BIG bold captions (the narration,
+viral style: uppercase white text with a thick black outline) onto the video.
 
 ## Typical agent flow
 

@@ -222,6 +222,10 @@
       </div>
       <label>Narration / story tone (optional)</label>
       <textarea id="autoStyle" rows="2" placeholder="e.g. Warm storyteller, gentle cinematic pace"></textarea>
+      <div class="toggle">
+        <input type="checkbox" id="autoSubs">
+        <label for="autoSubs" style="margin:0;text-transform:none;font-weight:400;letter-spacing:0;">Burn big bold captions (subtitles) onto the video</label>
+      </div>
       <div class="row" style="margin-top:14px;align-items:center;">
         <div style="flex:0;"><button id="autoBtn">▶ Generate Everything</button></div>
         <div style="font-size:13px;font-weight:700;" id="autoStatus"></div>
@@ -324,6 +328,10 @@ A single stick figure standing alone in a dark cave holding a glowing torch, ner
           <option value="mandarin chinese">中文 (Mandarin)</option></select></div>
         <div><label>Narration tone (optional)</label><input type="text" id="mVidStyle" placeholder="e.g. warm storyteller"></div>
       </div>
+      <div class="toggle">
+        <input type="checkbox" id="mSubs">
+        <label for="mSubs" style="margin:0;text-transform:none;font-weight:400;letter-spacing:0;">Burn big bold captions (subtitles) onto the video</label>
+      </div>
       <div class="bar"><div id="mVidProg"></div></div>
       <div class="row" style="margin-top:6px;align-items:center;">
         <div style="flex:0;"><button id="mBuildVidBtn">🎬 Build Video</button></div>
@@ -360,7 +368,7 @@ const getJSON=u=>fetch(u).then(r=>r.json());
 const PERSIST_IDS=['apiKey','ttsKey','model','quality','size','retries','delay',
   'llmModel','styleSuffix','negative','usePrev','ttsVoice','ttsFormat',
   'autoScenes','autoLang','autoStyle','autoVoice','autoChar','manualChar',
-  'mVidLang','mVidStyle'];
+  'autoSubs','mSubs','mVidLang','mVidStyle'];
 const LS_KEY='sketchReactorConfig';
 function saveConfig(){
   const o={};
@@ -580,7 +588,7 @@ $('mBuildVidBtn').onclick=async()=>{
   loadModels();
   const r=await postJSON('/api/build_video',{api_key:apiKey(),tts_key:ttsKey(),prompts:parsePrompts(),
     voice:voice(),style:$('mVidStyle').value.trim(),language:$('mVidLang').value,
-    narration_model:llmModel(),format:'wav'});
+    narration_model:llmModel(),subtitles:$('mSubs').checked,format:'wav'});
   if(r.error){$('mBuildVidBtn').disabled=false;$('mBuildVidStatus').textContent='❌ '+r.error;$('mBuildVidStatus').style.color='#e63329';return;}
   if(mVidPoll)clearInterval(mVidPoll);
   mVidPoll=setInterval(()=>pollMVideo(),1500); pollMVideo();
@@ -679,7 +687,8 @@ $('autoBtn').onclick=async()=>{
   // 3) narration + synced video
   autoStage('3/3 · Writing narration + building video…');
   const bv=await postJSON('/api/build_video',{api_key:key,tts_key:tk,prompts,voice:($('autoVoice').value||voice()),
-    style:$('autoStyle').value.trim(),language:$('autoLang').value,narration_model:llmModel(),format:'wav'});
+    style:$('autoStyle').value.trim(),language:$('autoLang').value,narration_model:llmModel(),
+    subtitles:$('autoSubs').checked,format:'wav'});
   if(bv.error)return autoFail(bv.error);
   const vfin=await pollUntilDone('/api/video_status',d=>{
     if(d.running){autoStage('3/3 · '+(d.stage||'working')+' ('+d.done+'/'+d.total+')');
