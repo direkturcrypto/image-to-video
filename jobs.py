@@ -266,7 +266,15 @@ def run_job(jid):
                   "narration": res["narration"], "scenes": len(res["narration"]),
                   "images": core.output_images(), "dir": str(d)}
 
-        # clickbait YouTube thumbnail (auto jobs only, unless opted out)
+        # viral title/description + clickbait thumbnail (auto jobs only)
+        if jtype == "auto" and not p.get("no_metadata"):
+            write_status(jid, stage="metadata")
+            try:
+                result["metadata"] = core.generate_metadata(
+                    api_key, p.get("title", ""), prompts,
+                    p.get("lang", "english"), p.get("model") or None)
+            except Exception as e:
+                result["metadata_error"] = str(e)
         if jtype == "auto" and not p.get("no_thumbnail"):
             write_status(jid, stage="thumbnail")
             try:

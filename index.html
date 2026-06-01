@@ -246,6 +246,12 @@
         <label>Final video</label>
         <video id="autoVideo" controls style="width:100%;border:2px solid var(--ink);border-radius:3px;"></video>
         <div style="margin-top:8px;"><a id="autoVideoDl" href="#" download style="font-size:13px;text-decoration:underline;">⬇ Download video</a></div>
+        <div id="autoMetaWrap" style="display:none;">
+          <label style="margin-top:12px;">Viral title options (click to copy)</label>
+          <div id="autoTitles"></div>
+          <label style="margin-top:10px;">Description</label>
+          <textarea id="autoDesc" rows="5" readonly style="background:var(--paper2);"></textarea>
+        </div>
         <div id="autoThumbWrap" style="display:none;">
           <label style="margin-top:12px;">YouTube thumbnail (clickbait)</label>
           <img id="autoThumb" style="width:100%;border:2px solid var(--ink);border-radius:3px;display:block;">
@@ -342,6 +348,21 @@ A single stick figure standing alone in a dark cave holding a glowing torch, ner
         <div style="margin-top:8px;"><a id="mVidDownload" href="#" download style="font-size:13px;text-decoration:underline;">⬇ Download video</a></div>
         <label style="margin-top:10px;">Per-scene narration used</label>
         <textarea id="mVidNarration" rows="5" readonly style="background:var(--paper2);"></textarea>
+      </div>
+      <hr style="border:none;border-top:2px dashed var(--ink);margin:16px 0;">
+      <p class="hint">Viral YouTube <b>title &amp; description</b> — written by Claude to maximize click-through and views (honest to the story).</p>
+      <div class="row" style="align-items:center;">
+        <div style="flex:0;"><button class="alt" id="metaBtn">✨ Title &amp; Description</button></div>
+        <div><input type="text" id="metaTitle" placeholder="title / idea (optional)"></div>
+        <div style="font-size:12px;flex:0;" id="metaStatus"></div>
+      </div>
+      <div id="metaResult" style="margin-top:12px;display:none;">
+        <label>Title options (click to copy)</label>
+        <div id="metaTitles"></div>
+        <label style="margin-top:10px;">Description</label>
+        <textarea id="metaDesc" rows="6" readonly style="background:var(--paper2);"></textarea>
+        <label style="margin-top:10px;">Tags</label>
+        <textarea id="metaTags" rows="2" readonly style="background:var(--paper2);"></textarea>
       </div>
       <hr style="border:none;border-top:2px dashed var(--ink);margin:16px 0;">
       <p class="hint">Clickbait YouTube thumbnail — Claude writes the prompt, GPT Image 2 renders it (16:9), matching your style/character.</p>
@@ -701,7 +722,16 @@ $('autoBtn').onclick=async()=>{
     $('autoVideo').src='/output/'+vfin.file+'?t='+Date.now(); $('autoVideoDl').href='/output/'+vfin.file;
     $('autoNarr').value=(vfin.narration||[]).join('\n'); $('autoResult').style.display='block';
   }
-  // 4) clickbait YouTube thumbnail
+  // 4) viral title & description
+  autoStage('Writing viral title & description…');
+  try{
+    const m=await postJSON('/api/metadata',{api_key:key,title,prompts,
+      language:$('autoLang').value,model:llmModel()});
+    if(!m.error){fillTitles($('autoTitles'),m.titles); $('autoDesc').value=m.description||'';
+      $('autoMetaWrap').style.display='block';}
+  }catch(e){}
+
+  // 5) clickbait YouTube thumbnail
   autoStage('Designing thumbnail…');
   try{
     const t=await postJSON('/api/thumbnail',{api_key:key,title,prompts,
@@ -712,6 +742,35 @@ $('autoBtn').onclick=async()=>{
   }catch(e){}
   autoStage('✅ Done! Video + thumbnail ready.','#1f9d55');
   $('autoBtn').disabled=false;
+};
+
+// Shared: render clickable, copy-on-click title options
+function fillTitles(el,titles){
+  el.innerHTML='';
+  (titles||[]).forEach(t=>{
+    const b=document.createElement('div');
+    b.textContent=t; b.title='click to copy';
+    b.style.cssText='border:2px solid var(--ink);border-radius:3px;padding:6px 10px;margin:4px 0;cursor:pointer;background:#fff;font-size:13px;';
+    b.onclick=()=>{try{navigator.clipboard.writeText(t);}catch(e){} b.style.background='var(--paper2)'; b.textContent='✓ '+t;};
+    el.appendChild(b);
+  });
+}
+
+// Manual: viral title & description
+$('metaBtn').onclick=async()=>{
+  const key=apiKey();
+  if(!key){alert('Enter your Image/LLM API key in the Config tab.');return;}
+  $('metaBtn').disabled=true; $('metaResult').style.display='none';
+  $('metaStatus').textContent='Writing viral title & description…'; $('metaStatus').style.color='var(--ink)';
+  try{
+    const m=await postJSON('/api/metadata',{api_key:key,title:$('metaTitle').value.trim(),
+      prompts:parsePrompts(),language:$('mVidLang').value,model:llmModel()});
+    if(m.error){$('metaStatus').textContent='❌ '+m.error;$('metaStatus').style.color='#e63329';}
+    else{fillTitles($('metaTitles'),m.titles); $('metaDesc').value=m.description||'';
+      $('metaTags').value=(m.tags||[]).join(', '); $('metaResult').style.display='block';
+      $('metaStatus').textContent='✅ Done!';$('metaStatus').style.color='#1f9d55';}
+  }catch(e){$('metaStatus').textContent='❌ '+e.message;$('metaStatus').style.color='#e63329';}
+  $('metaBtn').disabled=false;
 };
 
 // Manual: clickbait thumbnail

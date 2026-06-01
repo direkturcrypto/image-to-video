@@ -365,6 +365,21 @@ def api_video_status():
         return jsonify(dict(VIDEO))
 
 
+@app.route("/api/metadata", methods=["POST"])
+def api_metadata():
+    d = request.json or {}
+    api_key = (d.get("api_key") or "").strip()
+    if not api_key:
+        return jsonify({"error": "Image/LLM API key required (Config)."}), 400
+    try:
+        meta = core.generate_metadata(
+            api_key, d.get("title", ""), d.get("prompts"),
+            d.get("language", "english"), (d.get("model") or "").strip() or None)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"ok": True, **meta})
+
+
 @app.route("/api/thumbnail", methods=["POST"])
 def api_thumbnail():
     d = request.json or {}

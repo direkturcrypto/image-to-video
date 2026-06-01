@@ -790,6 +790,65 @@ def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
 
 
 # --------------------------------------------------------------------------
+# Viral YouTube title + description (Claude)
+# --------------------------------------------------------------------------
+def _parse_json_obj(raw):
+    t = raw.strip()
+    if t.startswith("```"):
+        t = t.split("```", 2)[1] if t.count("```") >= 2 else t
+        t = t.lstrip("json").strip("`\n ")
+    s, e = t.find("{"), t.rfind("}")
+    if s != -1 and e != -1:
+        return json.loads(t[s:e + 1])
+    raise ValueError("no JSON object in model output")
+
+
+def generate_metadata(api_key, title, prompts=None, language="english",
+                      model=None):
+    """Claude writes viral, high-CTR YouTube titles + a keyword-rich
+    description + tags. Returns a dict and also persists metadata.json/.txt."""
+    prompts = prompts if prompts is not None else load_project().get("prompts", [])
+    summary = "\n".join(f"- {p}" for p in (prompts or [])[:12] if p)
+    system_msg = (
+        "You are a top YouTube growth strategist. Given a video TITLE/IDEA and "
+        "its scenes, craft metadata engineered to MAXIMIZE click-through and "
+        "views: irresistible curiosity, emotional pull, power words, and the main "
+        "keyword near the front — but it must be HONEST to the story (no "
+        "misleading bait). "
+        "Return ONLY a JSON object with these keys: "
+        "\"titles\": array of 5 title options, each <= 70 characters, strongest "
+        "first; "
+        "\"description\": a string with a punchy 1-2 sentence hook, then a 2-3 "
+        "sentence summary, then a blank line and 3-5 hashtags; "
+        "\"tags\": array of 12-15 lowercase SEO keyword strings; "
+        "\"hashtags\": array of 3-5 strings each starting with #. "
+        f"Write everything in {language}. Output ONLY the JSON object.")
+    user = (f"TITLE/IDEA: {title or '(untitled)'}\n\nScenes:\n{summary or '(none)'}"
+            "\n\nGenerate the metadata.")
+    raw = chat_llm(api_key, model or NARRATION_MODEL,
+                   [{"role": "system", "content": system_msg},
+                    {"role": "user", "content": user}],
+                   temperature=0.9, max_tokens=1500)
+    data = _parse_json_obj(raw)
+    meta = {
+        "titles": [str(t).strip() for t in (data.get("titles") or []) if str(t).strip()][:8],
+        "description": str(data.get("description") or "").strip(),
+        "tags": [str(t).strip() for t in (data.get("tags") or []) if str(t).strip()],
+        "hashtags": [str(t).strip() for t in (data.get("hashtags") or []) if str(t).strip()],
+    }
+    try:
+        (OUTPUT_DIR / "metadata.json").write_text(
+            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        txt = "TITLES\n" + "\n".join(f"- {t}" for t in meta["titles"])
+        txt += "\n\nDESCRIPTION\n" + meta["description"]
+        txt += "\n\nTAGS\n" + ", ".join(meta["tags"])
+        (OUTPUT_DIR / "metadata.txt").write_text(txt, encoding="utf-8")
+    except Exception:
+        pass
+    return meta
+
+
+# --------------------------------------------------------------------------
 # YouTube thumbnail — Claude writes a clickbait prompt, GPT Image 2 renders it
 # --------------------------------------------------------------------------
 def write_thumbnail_prompt(api_key, title, scene_prompts, language="english",
@@ -867,7 +926,7 @@ def latest_video():
     return vids[-1] if vids else None
 
 
-ALL_PARTS = ("video", "audio", "images", "thumbnail", "prompts", "narration")
+ALL_PARTS = ("video", "audio", "images", "thumbnail", "metadata", "prompts", "narration")
 
 
 def package_outputs(dest, parts=None):
@@ -916,4 +975,9 @@ def package_outputs(dest, parts=None):
             nf = OUTPUT_DIR / "narration.txt"
             if nf.exists():
                 z.write(nf, "narration.txt")
+        if "metadata" in parts:
+            for fn in ("metadata.txt", "metadata.json"):
+                mf = OUTPUT_DIR / fn
+                if mf.exists():
+                    z.write(mf, fn)
     return str(dest)

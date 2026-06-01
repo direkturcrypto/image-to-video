@@ -272,7 +272,8 @@ def _auto_params(args):
             "model": args.model or "", "quality": args.quality, "size": args.size,
             "retries": args.retries, "delay": args.delay,
             "character": args.character or "", "no_prev": args.no_prev,
-            "no_thumbnail": args.no_thumbnail, "subtitles": args.subtitles}
+            "no_thumbnail": args.no_thumbnail, "no_metadata": args.no_metadata,
+            "subtitles": args.subtitles}
 
 
 def cmd_thumbnail(args):
@@ -340,6 +341,15 @@ def cmd_auto(args):
         shutil.copy(path, args.out)
         path = args.out
 
+    meta = None
+    if not args.no_metadata:
+        log("Writing viral title & description ...")
+        try:
+            meta = core.generate_metadata(key, args.title, prompts, args.lang,
+                                          args.model or None)
+        except Exception as e:
+            log(f"metadata failed (skipped): {e}")
+
     thumb = None
     if not args.no_thumbnail:
         log("Designing clickbait thumbnail ...")
@@ -351,8 +361,20 @@ def cmd_auto(args):
 
     out({"video": str(path), "title": args.title,
          "images": len(done), "failed": len(prompts) - len(done),
-         "thumbnail": (thumb or {}).get("file"),
+         "metadata": meta, "thumbnail": (thumb or {}).get("file"),
          "prompts": prompts, "narration": res["narration"]})
+
+
+def cmd_metadata(args):
+    """Viral YouTube title + description + tags (Claude)."""
+    key = need(args.api_key, "DEROUTER_API_KEY", "API key")
+    if args.job:
+        if not jobs.read_status(args.job):
+            fail(f"No such job: {args.job}")
+        core.OUTPUT_DIR = jobs.job_dir(args.job)
+        core.PROJECT_FILE = core.OUTPUT_DIR / "project.json"
+    log("Writing viral title & description ...")
+    out(core.generate_metadata(key, args.title, None, args.lang, args.model or None))
 
 
 # --------------------------------------------------------------------------
@@ -458,9 +480,18 @@ def build_parser():
                     help="burn big bold captions (the narration) onto the video")
     sp.add_argument("--no-thumbnail", action="store_true",
                     help="skip generating the YouTube thumbnail")
+    sp.add_argument("--no-metadata", action="store_true",
+                    help="skip generating the viral title & description")
     sp.add_argument("--async", dest="async_job", action="store_true",
                     help="queue as a background job; returns a job_id immediately")
     sp.set_defaults(func=cmd_auto)
+
+    sp = new("metadata", help="viral YouTube title + description + tags (Claude)")
+    sp.add_argument("--title", default="", help="video title/idea (helps)")
+    sp.add_argument("--lang", default="english")
+    sp.add_argument("--job", default="", help="generate for this job's project")
+    sp.add_argument("--model", default="", help="LLM model id")
+    sp.set_defaults(func=cmd_metadata)
 
     sp = new("thumbnail", help="clickbait YouTube thumbnail (Claude + GPT Image 2)")
     sp.add_argument("--title", default="", help="video title (helps the hook)")
