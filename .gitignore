@@ -11,10 +11,14 @@ pyvenv.cfg
 
 # Generated output & assets — do NOT push
 output/
+jobs/
 frames/
 anchors/
 characters/
 sample_video.mp4
+
+# Secrets
+.env
 
 # OS
 .DS_Store

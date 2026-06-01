@@ -1,6 +1,11 @@
-"""E2E test v4: OpenAI gpt-image-2 request shape, retry, ordering, refs."""
+"""E2E test v4: OpenAI gpt-image-2 request shape, retry, ordering, refs.
+
+The engine lives in core.py now, so we patch core (requests + dirs); app.py is
+just the HTTP layer over it.
+"""
 import time, base64, io, zipfile
 from pathlib import Path
+import core
 import app as appmod
 
 PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
@@ -26,19 +31,20 @@ def fake_post(url, **kw):
 def fake_get(url, **kw):
     return Resp(200, {"data":[]})   # /v1/models
 
-appmod.requests.post=fake_post
-appmod.requests.get=fake_get
+core.requests.post=fake_post
+core.requests.get=fake_get
 
 # IMPORTANT: redirect all I/O to a throwaway sandbox so running the test can
 # never delete a user's real generated images in ./output (it used to wipe them).
 import tempfile
 _sandbox = Path(tempfile.mkdtemp(prefix="sketch_test_"))
-appmod.OUTPUT_DIR = _sandbox / "output"
-appmod.ANCHOR_DIR = _sandbox / "anchors"
-appmod.FRAMES_DIR = _sandbox / "frames"
-for d in (appmod.OUTPUT_DIR, appmod.ANCHOR_DIR, appmod.FRAMES_DIR):
+core.OUTPUT_DIR = _sandbox / "output"
+core.ANCHOR_DIR = _sandbox / "anchors"
+core.FRAMES_DIR = _sandbox / "frames"
+core.CHAR_DIR = _sandbox / "characters"
+for d in (core.OUTPUT_DIR, core.ANCHOR_DIR, core.FRAMES_DIR, core.CHAR_DIR):
     d.mkdir(parents=True, exist_ok=True)
-appmod.PROJECT_FILE = appmod.OUTPUT_DIR / "project.json"
+core.PROJECT_FILE = core.OUTPUT_DIR / "project.json"
 print("SANDBOX:", _sandbox)
 
 client = appmod.app.test_client()
@@ -47,7 +53,7 @@ print("KEY TEST:", client.post("/api/test_key", json={"api_key":"sk-TEST"}).get_
 
 # make 2 fake anchors -> these force the /edits endpoint
 for i in range(2):
-    (appmod.ANCHOR_DIR/f"anchor_{i}.jpg").write_bytes(PNG)
+    (core.ANCHOR_DIR/f"anchor_{i}.jpg").write_bytes(PNG)
 
 calls.clear()
 r=client.post("/api/start", json={"api_key":"sk-TEST","prompts":[f"scene {i}" for i in range(4)],
@@ -61,7 +67,7 @@ for _ in range(200):
     time.sleep(0.05)
 print("FINAL:", {k:s[k] for k in ["running","total","done","error"]})
 
-files=sorted(p.name for p in appmod.OUTPUT_DIR.glob("[0-9][0-9][0-9].png"))
+files=sorted(p.name for p in core.OUTPUT_DIR.glob("[0-9][0-9][0-9].png"))
 print("FILES:", files)
 assert files==[f"{i+1:03d}.png" for i in range(4)], "ordering wrong"
 
