@@ -58,9 +58,6 @@ DEFAULT_STYLE = (
 DEFAULT_NEGATIVE = ("no photorealism, no 3d render, no shading gradients, "
                     "no extra detail, no text watermark")
 
-# Pacing: keep every image on screen this many seconds (fast cuts).
-PACE_MIN, PACE_MAX = 1.0, 3.0
-
 IMAGE_MODELS = {"gpt-image-2", "gpt-image-1.5", "gpt-image-1-mini"}
 
 COST_PER_IMG = {
@@ -89,17 +86,6 @@ def _log(*a):
 
 def has_ffmpeg():
     return shutil.which("ffmpeg") is not None
-
-
-def audio_duration(path):
-    """Duration in seconds of an audio/video file via ffprobe (0.0 on error)."""
-    try:
-        out = subprocess.check_output(
-            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
-             "-of", "csv=p=0", str(path)]).decode().strip()
-        return float(out)
-    except Exception:
-        return 0.0
 
 
 # --------------------------------------------------------------------------
@@ -659,24 +645,16 @@ def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
         apath = work / f"seg_{i:03d}.wav"
         apath.write_bytes(audio)
         seg = work / f"seg_{i:03d}.mp4"
-        # Fast pacing: keep each image on screen PACE_MIN..PACE_MAX seconds.
-        #  - short line  -> hold the frame to PACE_MIN (audio + brief silence)
-        #  - long line   -> gently speed the audio up (atempo, pitch-preserving)
-        #    so it fits without EVER cutting words. Synced to the (sped) audio.
-        dur = audio_duration(apath)
-        atempo = min(dur / PACE_MAX, 2.0) if dur > PACE_MAX else 1.0
-        eff = dur / atempo                         # audio length after speed-up
-        target = max(eff, PACE_MIN)                # >= audio, so nothing is cut
-        afilter = ["-filter:a", f"atempo={atempo:.3f}"] if atempo > 1.001 else []
+        # image duration = its own audio length, exactly (perfect sync, no speed
+        # change). Fast pacing comes from the short narration lines, not editing.
         cmd = [
             "ffmpeg", "-v", "error", "-y",
             "-loop", "1", "-i", str(OUTPUT_DIR / img),
             "-i", str(apath),
             "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p",
             "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-        ] + afilter + [
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
-            "-t", f"{target:.3f}", str(seg),
+            "-shortest", str(seg),
         ]
         r = subprocess.run(cmd, capture_output=True)
         if r.returncode != 0 or not seg.exists():
