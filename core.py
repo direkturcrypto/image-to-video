@@ -18,6 +18,7 @@ print progress — neither owns the logic.
 API keys are passed in explicitly (never read from globals here).
 """
 
+import os
 import sys
 import time
 import json
@@ -30,6 +31,26 @@ from pathlib import Path
 import requests
 
 APP_DIR = Path(__file__).parent.resolve()
+
+
+def _load_env_file():
+    """Load KEY=VALUE lines from .env into the environment (real env wins).
+    Done here so both the web app and CLI pick up settings like SKETCH_SCENE_CAP."""
+    f = APP_DIR / ".env"
+    if not f.exists():
+        return
+    try:
+        for line in f.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    except Exception:
+        pass
+
+
+_load_env_file()
 OUTPUT_DIR = APP_DIR / "output"
 FRAMES_DIR = APP_DIR / "frames"
 ANCHOR_DIR = APP_DIR / "anchors"
@@ -520,8 +541,9 @@ def generate_image(api_key, prompt, settings, ref_paths, raw_prompt=False):
 
 
 def process_one(api_key, idx, prompt, settings, use_prev=True, retries=3,
-                on_status=None, should_stop=None):
-    """Generate ONE image (1-based file idx+1), with retries/backoff.
+                on_status=None, should_stop=None, start_index=0):
+    """Generate ONE image, with retries/backoff. The saved file is numbered
+    start_index+idx+1 (start_index lets `extend` append after existing images).
 
     on_status(idx, status=..., file=..., error=...) is called on each change.
     Returns the final {status, file, error} dict.
@@ -530,12 +552,13 @@ def process_one(api_key, idx, prompt, settings, use_prev=True, retries=3,
         if on_status:
             on_status(idx, **kw)
 
+    absidx = start_index + idx                 # absolute position in the sequence
     refs = anchor_paths()
     sheet = settings.get("character_sheet")
     if sheet and Path(sheet).exists():
         refs = refs + [sheet]
-    if use_prev and idx > 0:
-        prev = OUTPUT_DIR / f"{idx:03d}.png"
+    if use_prev and absidx > 0:
+        prev = OUTPUT_DIR / f"{absidx:03d}.png"
         if prev.exists():
             refs = refs + [str(prev)]
 
@@ -547,7 +570,7 @@ def process_one(api_key, idx, prompt, settings, use_prev=True, retries=3,
         result["status"] = "busy"
         try:
             png = generate_image(api_key, prompt, settings, refs)
-            fname = f"{idx + 1:03d}.png"
+            fname = f"{absidx + 1:03d}.png"
             (OUTPUT_DIR / fname).write_bytes(png)
             result.update(status="done", file=fname, error=None)
             status(status="done", file=fname, error=None)
@@ -571,8 +594,10 @@ def process_one(api_key, idx, prompt, settings, use_prev=True, retries=3,
     return result
 
 
-def generate_all(api_key, prompts, settings, on_status=None, should_stop=None):
-    """Generate a whole prompt list in order. Returns list of result dicts."""
+def generate_all(api_key, prompts, settings, on_status=None, should_stop=None,
+                 start_index=0):
+    """Generate a whole prompt list in order. With start_index>0 the files are
+    appended after existing images (used by `extend`). Returns result dicts."""
     resolve_character(settings)
     use_prev = bool(settings.get("use_previous", True))
     delay = float(settings.get("delay", 0.5) or 0)
@@ -583,7 +608,8 @@ def generate_all(api_key, prompts, settings, on_status=None, should_stop=None):
             break
         results.append(process_one(api_key, idx, prompt, settings,
                                     use_prev=use_prev, retries=retries,
-                                    on_status=on_status, should_stop=should_stop))
+                                    on_status=on_status, should_stop=should_stop,
+                                    start_index=start_index))
         if delay:
             time.sleep(delay)
     return results
@@ -621,29 +647,39 @@ def _parse_prompt_list(raw, count):
     return cleaned[:count] if cleaned else []
 
 
-SCENE_CAP = 300            # hard upper bound on scenes per video
+# hard upper bound on scenes per video — override with SKETCH_SCENE_CAP in .env
+SCENE_CAP = int(os.environ.get("SKETCH_SCENE_CAP") or 300)
 SCENE_CHUNK = 40           # prompts generated per LLM call (large counts batch)
 
 
 def generate_scene_prompts(api_key, title, count, language="english",
-                           style_hint="", model=None):
-    """Turn a TITLE into `count` continuous storytelling scene prompts.
+                           style_hint="", model=None, prior=None):
+    """Generate `count` NEW continuous storytelling scene prompts.
 
     Large counts are generated in batches (carrying the prior scenes forward)
     so the story stays coherent and we don't blow the token limit in one call.
+    If `prior` (existing prompts) is given, the new scenes CONTINUE that story
+    instead of restarting — used by `extend`. Returns only the new prompts.
     """
+    prior = list(prior or [])
     count = max(1, min(int(count), SCENE_CAP))
-    prompts = []
-    while len(prompts) < count:
-        start = len(prompts)
-        need = min(SCENE_CHUNK, count - start)
+    total = len(prior) + count
+    new = []
+    while len(new) < count:
+        start = len(prior) + len(new)          # absolute index of next scene
+        need = min(SCENE_CHUNK, count - len(new))
         system_msg = (
             "You are a master visual storyteller for immersive, cinematic narrated "
             "story videos — the gripping second-person style of channels like "
             "'Lost Legacy' (e.g. 'Your Life as a ...'). "
-            f"The full video is ONE continuous story told over {count} sequential "
+            f"The full video is ONE continuous story told over {total} sequential "
             "scenes with a clear arc: a hook at scene 1, rising tension, a turning "
-            f"point, and a resonant ending at scene {count}. "
+            f"point, and a resonant ending at scene {total}. ")
+        if prior:
+            system_msg += ("This is a CONTINUATION of an ongoing story — do NOT "
+                           "restart or re-introduce; pick up exactly where it left "
+                           "off. ")
+        system_msg += (
             f"Now write scenes {start + 1} to {start + need}. "
             "For each scene write ONE vivid image-generation prompt describing only "
             "what we SEE: setting, the main character(s) and their expression + "
@@ -657,8 +693,8 @@ def generate_scene_prompts(api_key, title, count, language="english",
         if style_hint:
             system_msg += f"\nStory/tone hint: {style_hint}"
         msgs = [{"role": "system", "content": system_msg}]
-        if prompts:                       # carry the last few scenes for continuity
-            tail = prompts[-3:]
+        tail = (prior + new)[-3:]              # last few scenes for continuity
+        if tail:
             base = start - len(tail)
             msgs.append({"role": "user", "content":
                          "Previous scenes (continue seamlessly, do not repeat):\n" +
@@ -669,11 +705,11 @@ def generate_scene_prompts(api_key, title, count, language="english",
                        temperature=0.9, max_tokens=6000)
         chunk = _parse_prompt_list(raw, need)
         if not chunk:
-            if not prompts:
+            if not new:
                 raise RuntimeError("Could not parse prompts from model output: " + raw[:300])
-            break                         # stop gracefully if a later batch fails
-        prompts += chunk
-    return prompts[:count]
+            break                              # stop gracefully if a later batch fails
+        new += chunk
+    return new[:count]
 
 
 def write_narration(api_key, n, scene_prompts, language="english", style="",

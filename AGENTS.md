@@ -47,7 +47,14 @@ cp .env.example .env     # then edit .env:
 
 `.env` is loaded automatically. If the keys are unknown, **ask the user**. Keys
 may also be passed per command via `--api-key` / `--tts-key`, or as env vars.
-Precedence: flag > env var > `.env`.
+Precedence: flag > env var > `.env`. Other `.env` settings: `SKETCH_SCENE_CAP`
+(max scenes per video, default 300).
+
+If a big run came up short (interrupted, or made on an older 60-capped build),
+don't re-generate — **`extend`** appends the missing scenes onto the existing
+images: `cli.py extend --title "<same title>" --add <N>` (or pass explicit
+`--prompts`). New images are numbered after the existing ones and continue the
+story; then `video` / `package` use them all.
 
 ## Contract
 
@@ -63,6 +70,7 @@ Precedence: flag > env var > `.env`.
 |---|---|---|
 | `auto` | **Full pipeline**: title → prompts → images → narrated video → viral title/description → clickbait thumbnail | `video`, `prompts`, `narration`, `images`, `metadata`, `thumbnail` |
 | `metadata` | Viral YouTube title + description + tags (Claude) | `titles[]`, `description`, `tags[]`, `hashtags[]` |
+| `extend` | Append MORE scenes onto an existing project (no re-gen) — `--title --add N` or `--prompts`/`--prompts-file` | `appended`, `existing`, `total_images` |
 | `thumbnail` | Clickbait YouTube thumbnail (Claude prompt → GPT Image 2, 16:9) | `thumbnail`, `prompt` |
 | `prompts` | Title → scene prompts (no images) | `prompts` |
 | `generate` | Generate images from given prompts | `images`, `done`, `failed`, `results` |

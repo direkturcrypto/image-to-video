@@ -177,6 +177,47 @@ def cmd_generate(args):
          "results": results})
 
 
+def cmd_extend(args):
+    """Append MORE scenes onto an existing project's images (no re-generation
+    of what's already there). New images are numbered after the existing ones
+    and continue from the last image for visual continuity."""
+    key = need(args.api_key, "DEROUTER_API_KEY", "API key")
+    if args.job:
+        if not jobs.read_status(args.job):
+            fail(f"No such job: {args.job}")
+        core.OUTPUT_DIR = jobs.job_dir(args.job)
+        core.PROJECT_FILE = core.OUTPUT_DIR / "project.json"
+    existing = core.output_images()
+    E = len(existing)
+    prior = core.load_project().get("prompts", [])
+    settings = img_settings(args)
+
+    new = read_prompts(args)
+    if not new:
+        if args.title and args.add > 0:
+            log(f"Writing {args.add} more scenes continuing the story ...")
+            new = core.generate_scene_prompts(key, args.title, args.add, args.lang,
+                                              args.style_hint or "",
+                                              args.model or None, prior=prior)
+        else:
+            fail("Provide --prompts / --prompts-file, or --title with --add N.")
+    core.resolve_character(settings)
+    log(f"Appending {len(new)} images after {E} existing ...")
+
+    def on_status(idx, **kw):
+        if kw.get("status") == "done":
+            log(f"  [{E+idx+1:03d}] done")
+        elif kw.get("status") == "error":
+            log(f"  [{E+idx+1:03d}] ERROR: {kw.get('error')}")
+
+    results = core.generate_all(key, new, settings, on_status=on_status, start_index=E)
+    ok = [r for r in results if r["status"] == "done"]
+    core.save_project(prior + new, settings)       # merge so the story is whole
+    out({"appended": len(ok), "failed": len(new) - len(ok),
+         "existing": E, "total_images": len(core.output_images()),
+         "dir": str(core.OUTPUT_DIR), "images": core.output_images()})
+
+
 def cmd_tts(args):
     key = need(args.tts_key, "MIMO_TTS_KEY", "TTS key")
     text = args.text
@@ -437,6 +478,17 @@ def build_parser():
     sp.add_argument("--async", dest="async_job", action="store_true",
                     help="queue as a background job; returns a job_id immediately")
     sp.set_defaults(func=cmd_generate)
+
+    sp = new("extend", help="append more scenes onto an existing project")
+    sp.add_argument("--prompts-file", default="", help="explicit extra prompts (blank-line sep)")
+    sp.add_argument("--prompts", default="", help="extra prompts separated by ||")
+    sp.add_argument("--title", default="", help="for auto-continue with --add")
+    sp.add_argument("--add", type=int, default=0, help="auto-write this many more scenes")
+    sp.add_argument("--lang", default="english")
+    sp.add_argument("--style-hint", default="")
+    sp.add_argument("--job", default="", help="extend this job's images")
+    add_img_opts(sp)
+    sp.set_defaults(func=cmd_extend)
 
     sp = new("tts", help="text -> voice (one clip)")
     sp.add_argument("--text", default="")
