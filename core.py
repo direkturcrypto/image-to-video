@@ -621,38 +621,59 @@ def _parse_prompt_list(raw, count):
     return cleaned[:count] if cleaned else []
 
 
+SCENE_CAP = 300            # hard upper bound on scenes per video
+SCENE_CHUNK = 40           # prompts generated per LLM call (large counts batch)
+
+
 def generate_scene_prompts(api_key, title, count, language="english",
                            style_hint="", model=None):
-    """Turn a TITLE into `count` continuous, storytelling scene prompts."""
-    count = max(1, min(int(count), 60))
-    system_msg = (
-        "You are a master visual storyteller for immersive, cinematic narrated "
-        "story videos — the gripping second-person style of YouTube channels "
-        "like 'Lost Legacy' (e.g. 'Your Life as a ...'). "
-        "Given only a TITLE, craft ONE continuous STORY with a clear arc: a hook, "
-        "rising tension, a turning point, and a resonant ending — then break it "
-        f"into EXACTLY {count} sequential scenes. "
-        "For each scene write ONE vivid image-generation prompt describing only "
-        "what we SEE in that single moment: setting, the main character(s) and "
-        "their expression + action, camera framing (close-up / wide / over-the-"
-        "shoulder), time of day, lighting and mood. "
-        "Keep the SAME main character(s) and world visually consistent and "
-        "recognizable from scene to scene, and make each scene clearly advance "
-        "the story. Do NOT mention art style (handled separately) and do NOT "
-        "include narration, captions or dialogue text. "
-        f"Write the prompts in {language}. "
-        f"Return EXACTLY {count} prompts as a JSON array of strings and nothing "
-        "else — no numbering, no keys, no markdown fences.")
-    if style_hint:
-        system_msg += f"\nStory/tone hint: {style_hint}"
-    raw = chat_llm(api_key, model or NARRATION_MODEL,
-                   [{"role": "system", "content": system_msg},
-                    {"role": "user", "content": f"TITLE: {title}\n\nGenerate {count} scene prompts."}],
-                   temperature=0.9, max_tokens=4000)
-    prompts = _parse_prompt_list(raw, count)
-    if not prompts:
-        raise RuntimeError("Could not parse prompts from model output: " + raw[:300])
-    return prompts
+    """Turn a TITLE into `count` continuous storytelling scene prompts.
+
+    Large counts are generated in batches (carrying the prior scenes forward)
+    so the story stays coherent and we don't blow the token limit in one call.
+    """
+    count = max(1, min(int(count), SCENE_CAP))
+    prompts = []
+    while len(prompts) < count:
+        start = len(prompts)
+        need = min(SCENE_CHUNK, count - start)
+        system_msg = (
+            "You are a master visual storyteller for immersive, cinematic narrated "
+            "story videos — the gripping second-person style of channels like "
+            "'Lost Legacy' (e.g. 'Your Life as a ...'). "
+            f"The full video is ONE continuous story told over {count} sequential "
+            "scenes with a clear arc: a hook at scene 1, rising tension, a turning "
+            f"point, and a resonant ending at scene {count}. "
+            f"Now write scenes {start + 1} to {start + need}. "
+            "For each scene write ONE vivid image-generation prompt describing only "
+            "what we SEE: setting, the main character(s) and their expression + "
+            "action, camera framing, time of day, lighting and mood. Keep the SAME "
+            "character(s) and world visually consistent, and keep advancing the "
+            "story. Do NOT mention art style and do NOT include narration, captions "
+            "or dialogue text. "
+            f"Write in {language}. "
+            f"Return EXACTLY {need} prompts as a JSON array of strings and nothing "
+            "else — no numbering, no keys, no markdown fences.")
+        if style_hint:
+            system_msg += f"\nStory/tone hint: {style_hint}"
+        msgs = [{"role": "system", "content": system_msg}]
+        if prompts:                       # carry the last few scenes for continuity
+            tail = prompts[-3:]
+            base = start - len(tail)
+            msgs.append({"role": "user", "content":
+                         "Previous scenes (continue seamlessly, do not repeat):\n" +
+                         "\n".join(f"{base+i+1}. {p}" for i, p in enumerate(tail))})
+        msgs.append({"role": "user",
+                     "content": f"TITLE: {title}\n\nWrite scenes {start+1}-{start+need}."})
+        raw = chat_llm(api_key, model or NARRATION_MODEL, msgs,
+                       temperature=0.9, max_tokens=6000)
+        chunk = _parse_prompt_list(raw, need)
+        if not chunk:
+            if not prompts:
+                raise RuntimeError("Could not parse prompts from model output: " + raw[:300])
+            break                         # stop gracefully if a later batch fails
+        prompts += chunk
+    return prompts[:count]
 
 
 def write_narration(api_key, n, scene_prompts, language="english", style="",
@@ -680,7 +701,7 @@ def write_narration(api_key, n, scene_prompts, language="english", style="",
     raw = chat_llm(api_key, model or NARRATION_MODEL,
                    [{"role": "system", "content": system_msg},
                     {"role": "user", "content": f"Scenes:\n\n{prompt_summary}"}],
-                   temperature=0.8, max_tokens=4000)
+                   temperature=0.8, max_tokens=8000)
     lines = _parse_prompt_list(raw, n)
     if len(lines) < n:
         lines += [""] * (n - len(lines))
