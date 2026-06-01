@@ -310,7 +310,8 @@ def cmd_auto(args):
     def on_progress(stage, d, total, narration):
         log(f"  [{d}/{total}] {stage}")
 
-    res = core.build_video(key, tts, prompts, voice=args.voice, style=args.style or "",
+    # NOTE: --style is the image art style; narration tone stays empty here
+    res = core.build_video(key, tts, prompts, voice=args.voice, style="",
                            language=args.lang, narration_model=args.model or None,
                            on_progress=on_progress)
     path = core.OUTPUT_DIR / res["file"]
@@ -345,8 +346,10 @@ def build_parser():
         sp.add_argument("--size", default="1024x1024")
         sp.add_argument("--retries", type=int, default=3)
         sp.add_argument("--delay", type=float, default=0.0)
-        sp.add_argument("--style", default="", help="art-style description")
-        sp.add_argument("--negative", default="", help="things to avoid")
+        sp.add_argument("--style", default=core.DEFAULT_STYLE,
+                        help="art-style description (default: stickman doodle look)")
+        sp.add_argument("--negative", default=core.DEFAULT_NEGATIVE,
+                        help="things to avoid (default: no photoreal/3d/gradients)")
         sp.add_argument("--no-prev", action="store_true",
                         help="don't feed the previous image into the next")
         sp.add_argument("--character", default="", help="character id (see `characters`)")

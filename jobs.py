@@ -249,17 +249,16 @@ def run_job(jid):
 
         if not tts_key:
             raise RuntimeError("MIMO_TTS_KEY not set for the worker.")
-        if jtype == "video":
-            prompts_for_video = prompts
-        else:                                  # auto
-            prompts_for_video = prompts
+        # narration tone: only the `video` job carries one in --style; for `auto`
+        # the --style is the image art style, so the tone stays empty.
+        narration_tone = p.get("style", "") if jtype == "video" else ""
 
         def on_progress(stage, done, total, narration):
             write_status(jid, stage=stage, done=done, total=total)
 
         res = core.build_video(
-            api_key, tts_key, prompts_for_video, voice=p.get("voice", "Mia"),
-            style=p.get("style", ""), language=p.get("lang", "english"),
+            api_key, tts_key, prompts, voice=p.get("voice", "Mia"),
+            style=narration_tone, language=p.get("lang", "english"),
             narration_model=p.get("model") or None, on_progress=on_progress)
 
         result = {"video": res["file"], "video_path": str(d / res["file"]),
