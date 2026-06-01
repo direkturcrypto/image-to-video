@@ -70,6 +70,7 @@ read the `error` field and report it.
 | `prompts --title "..." --scenes N` | just the scene prompts (JSON), e.g. to let the user edit them |
 | `generate --prompts-file f.txt [--character id] [--style ...]` | images only (prompts blank-line separated, or `--prompts "a\|\|b"`) |
 | `video [--job <id>]` | build the synced video from existing images (a job's, or `output/`) |
+| `thumbnail --title "..." [--job ID]` | clickbait YouTube thumbnail (Claude → GPT Image 2, 16:9) |
 | `character --name "X" --desc "physical look..."` | make a reusable character sheet → returns its `id` |
 | `characters` | list saved character ids |
 | `tts --text "..." --voice Mia --out vo.wav` | one voice clip |

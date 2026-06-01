@@ -363,6 +363,22 @@ def api_video_status():
         return jsonify(dict(VIDEO))
 
 
+@app.route("/api/thumbnail", methods=["POST"])
+def api_thumbnail():
+    d = request.json or {}
+    api_key = (d.get("api_key") or "").strip()
+    if not api_key:
+        return jsonify({"error": "Image/LLM API key required (Config)."}), 400
+    try:
+        res = core.generate_thumbnail(
+            api_key, d.get("title", ""), d.get("prompts"),
+            d.get("settings") or {}, d.get("language", "english"),
+            (d.get("model") or "").strip() or None)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"ok": True, "file": res["file"], "prompt": res["prompt"]})
+
+
 if __name__ == "__main__":
     print("\n  Sketch Reactor (GPT Image 2 + MiMo TTS)  ->  http://localhost:5001")
     print("  ffmpeg detected:", core.has_ffmpeg(), "\n")

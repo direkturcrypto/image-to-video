@@ -61,7 +61,8 @@ Precedence: flag > env var > `.env`.
 
 | Command | What it does | Key output keys |
 |---|---|---|
-| `auto` | **Full pipeline**: title → prompts → images → narrated video | `video`, `prompts`, `narration`, `images` |
+| `auto` | **Full pipeline**: title → prompts → images → narrated video → clickbait thumbnail | `video`, `prompts`, `narration`, `images`, `thumbnail` |
+| `thumbnail` | Clickbait YouTube thumbnail (Claude prompt → GPT Image 2, 16:9) | `thumbnail`, `prompt` |
 | `prompts` | Title → scene prompts (no images) | `prompts` |
 | `generate` | Generate images from given prompts | `images`, `done`, `failed`, `results` |
 | `character` | Generate a reusable character reference sheet | `character.id`, `character.sheet_path` |

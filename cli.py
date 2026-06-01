@@ -271,7 +271,27 @@ def _auto_params(args):
             "style": args.style or "", "negative": args.negative or "",
             "model": args.model or "", "quality": args.quality, "size": args.size,
             "retries": args.retries, "delay": args.delay,
-            "character": args.character or "", "no_prev": args.no_prev}
+            "character": args.character or "", "no_prev": args.no_prev,
+            "no_thumbnail": args.no_thumbnail}
+
+
+def cmd_thumbnail(args):
+    """Generate a clickbait YouTube thumbnail (Claude prompt -> GPT Image 2)."""
+    key = need(args.api_key, "DEROUTER_API_KEY", "API key")
+    if args.job:
+        if not jobs.read_status(args.job):
+            fail(f"No such job: {args.job}")
+        core.OUTPUT_DIR = jobs.job_dir(args.job)
+        core.PROJECT_FILE = core.OUTPUT_DIR / "project.json"
+    log("Designing clickbait thumbnail ...")
+    res = core.generate_thumbnail(key, args.title, None, img_settings(args),
+                                  args.lang, args.model or None)
+    path = core.OUTPUT_DIR / res["file"]
+    if args.out:
+        import shutil
+        shutil.copy(path, args.out)
+        path = args.out
+    out({"thumbnail": str(path), "prompt": res["prompt"]})
 
 
 def cmd_auto(args):
@@ -319,8 +339,19 @@ def cmd_auto(args):
         import shutil
         shutil.copy(path, args.out)
         path = args.out
+
+    thumb = None
+    if not args.no_thumbnail:
+        log("Designing clickbait thumbnail ...")
+        try:
+            thumb = core.generate_thumbnail(key, args.title, prompts, settings,
+                                            args.lang, args.model or None)
+        except Exception as e:
+            log(f"thumbnail failed (skipped): {e}")
+
     out({"video": str(path), "title": args.title,
          "images": len(done), "failed": len(prompts) - len(done),
+         "thumbnail": (thumb or {}).get("file"),
          "prompts": prompts, "narration": res["narration"]})
 
 
@@ -421,9 +452,19 @@ def build_parser():
     sp.add_argument("--style-hint", default="", help="story/tone hint for prompts")
     add_img_opts(sp)
     sp.add_argument("--out", default="", help="copy final video here")
+    sp.add_argument("--no-thumbnail", action="store_true",
+                    help="skip generating the YouTube thumbnail")
     sp.add_argument("--async", dest="async_job", action="store_true",
                     help="queue as a background job; returns a job_id immediately")
     sp.set_defaults(func=cmd_auto)
+
+    sp = new("thumbnail", help="clickbait YouTube thumbnail (Claude + GPT Image 2)")
+    sp.add_argument("--title", default="", help="video title (helps the hook)")
+    sp.add_argument("--lang", default="english", help="language for on-image text")
+    sp.add_argument("--job", default="", help="generate for this job's project")
+    add_img_opts(sp)
+    sp.add_argument("--out", default="", help="copy thumbnail here")
+    sp.set_defaults(func=cmd_thumbnail)
 
     # --- job queue ---
     sp = new("jobs", help="list all queued/running/finished jobs")

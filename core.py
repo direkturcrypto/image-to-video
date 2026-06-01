@@ -652,6 +652,7 @@ def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
             "-loop", "1", "-i", str(OUTPUT_DIR / img),
             "-i", str(apath),
             "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p",
+            "-r", "25",                            # constant fps for clean concat
             "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
             "-shortest", str(seg),
@@ -669,9 +670,16 @@ def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
     listfile = work / "list.txt"
     listfile.write_text("".join(f"file '{s.name}'\n" for s in segments))
     out = OUTPUT_DIR / f"final_video_{int(time.time())}.mp4"
+    # RE-ENCODE on concat (not -c copy): stream-copying AAC leaves a small
+    # priming gap per segment that accumulates into audio/video drift. Re-
+    # encoding to one continuous stream (constant fps) keeps it perfectly synced.
     cc = subprocess.run(
         ["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0",
-         "-i", str(listfile), "-c", "copy", str(out)],
+         "-i", str(listfile),
+         "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p",
+         "-r", "25", "-vsync", "cfr",
+         "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
+         "-movflags", "+faststart", str(out)],
         cwd=str(work), capture_output=True)
     if cc.returncode != 0 or not out.exists():
         raise RuntimeError("ffmpeg concat failed: " + cc.stderr.decode()[:300])
@@ -682,6 +690,76 @@ def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
 
 
 # --------------------------------------------------------------------------
+# YouTube thumbnail — Claude writes a clickbait prompt, GPT Image 2 renders it
+# --------------------------------------------------------------------------
+def write_thumbnail_prompt(api_key, title, scene_prompts, language="english",
+                           model=None):
+    summary = "\n".join(f"- {p}" for p in (scene_prompts or [])[:12] if p)
+    system_msg = (
+        "You design viral YouTube thumbnails. Given a video TITLE and its scene "
+        "list, write ONE vivid image prompt for a CLICKBAIT thumbnail that "
+        "instantly sells the story's hook. Describe a SINGLE bold focal "
+        "composition: the main character in close/medium shot with an "
+        "EXAGGERATED emotional expression (shock, fear, awe, grief or "
+        "excitement) that fits the story, dramatic lighting, vivid saturated "
+        "colors, strong depth, and clear empty space on one side for a title. "
+        "You MAY specify 2-4 BIG bold capitalized words of punchy on-image text "
+        "that tease the hook (keep it very short). Describe only what is SEEN; "
+        "do NOT mention art style or rendering. Return ONLY the prompt as one "
+        "paragraph — no quotes, no preamble. "
+        f"Write any on-image text in {language}.")
+    user = (f"TITLE: {title or '(untitled)'}\n\nScenes:\n{summary or '(none)'}\n\n"
+            "Write the thumbnail prompt.")
+    return chat_llm(api_key, model or NARRATION_MODEL,
+                    [{"role": "system", "content": system_msg},
+                     {"role": "user", "content": user}],
+                    temperature=0.9, max_tokens=600).strip()
+
+
+def generate_thumbnail(api_key, title="", prompts=None, settings=None,
+                       language="english", model=None):
+    """Generate a 16:9 clickbait YouTube thumbnail. Returns {file, prompt}."""
+    settings = dict(settings or {})
+    resolve_character(settings)
+    prompts = prompts if prompts is not None else load_project().get("prompts", [])
+    tprompt = write_thumbnail_prompt(api_key, title, prompts, language, model)
+
+    style = (settings.get("style_suffix") or "").strip()
+    full = tprompt
+    if style:
+        full += f"\n\nArt style (match the video exactly): {style}."
+    full += (" Composition for a YouTube thumbnail (16:9): bold, high-contrast, "
+             "ultra eye-catching, dramatic lighting, vivid colors.")
+
+    tset = dict(settings)
+    tset["size"] = "1536x1024"                 # landscape; cropped to 16:9 below
+    refs = anchor_paths()
+    sheet = settings.get("character_sheet")
+    if sheet and Path(sheet).exists():
+        refs.append(sheet)
+    imgs = output_images()
+    if imgs:                                   # 1st scene as a ref -> same character
+        refs.append(str(OUTPUT_DIR / imgs[0]))
+
+    png = generate_image(api_key, full, tset, refs, raw_prompt=True)
+    dest = OUTPUT_DIR / "thumbnail.png"
+    if has_ffmpeg():
+        raw = OUTPUT_DIR / "_thumb_raw.png"
+        raw.write_bytes(png)
+        r = subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-i", str(raw),
+             "-vf", "crop=iw:iw*9/16,scale=1280:720", str(dest)],
+            capture_output=True)
+        if r.returncode != 0 or not dest.exists():
+            dest.write_bytes(png)              # fallback: keep the raw render
+        raw.unlink(missing_ok=True)
+    else:
+        dest.write_bytes(png)
+    (OUTPUT_DIR / "thumbnail_prompt.txt").write_text(tprompt, encoding="utf-8")
+    return {"file": dest.name, "prompt": tprompt}
+
+
+# --------------------------------------------------------------------------
 # Packaging — bundle the deliverables (video, audio, images, text) into a zip
 # --------------------------------------------------------------------------
 def latest_video():
@@ -689,7 +767,7 @@ def latest_video():
     return vids[-1] if vids else None
 
 
-ALL_PARTS = ("video", "audio", "images", "prompts", "narration")
+ALL_PARTS = ("video", "audio", "images", "thumbnail", "prompts", "narration")
 
 
 def package_outputs(dest, parts=None):
@@ -708,6 +786,13 @@ def package_outputs(dest, parts=None):
                 z.write(OUTPUT_DIR / fn, f"images/{fn}")
         if "video" in parts and vid:
             z.write(vid, f"video/{vid.name}")
+        if "thumbnail" in parts:
+            t = OUTPUT_DIR / "thumbnail.png"
+            if t.exists():
+                z.write(t, "thumbnail.png")
+            tp = OUTPUT_DIR / "thumbnail_prompt.txt"
+            if tp.exists():
+                z.write(tp, "thumbnail_prompt.txt")
         if "audio" in parts:
             # pull the combined narration audio out of the final video
             if vid and has_ffmpeg():

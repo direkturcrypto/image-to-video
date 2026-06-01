@@ -264,6 +264,18 @@ def run_job(jid):
         result = {"video": res["file"], "video_path": str(d / res["file"]),
                   "narration": res["narration"], "scenes": len(res["narration"]),
                   "images": core.output_images(), "dir": str(d)}
+
+        # clickbait YouTube thumbnail (auto jobs only, unless opted out)
+        if jtype == "auto" and not p.get("no_thumbnail"):
+            write_status(jid, stage="thumbnail")
+            try:
+                th = core.generate_thumbnail(
+                    api_key, p.get("title", ""), prompts,
+                    _settings(p), p.get("lang", "english"), p.get("model") or None)
+                result["thumbnail"] = th["file"]
+            except Exception as e:
+                result["thumbnail_error"] = str(e)
+
         write_status(jid, status="done", stage="done", result=result)
 
     except Exception as e:
