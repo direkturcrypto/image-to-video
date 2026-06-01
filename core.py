@@ -115,9 +115,26 @@ def _load_font(size):
     return ImageFont.load_default()
 
 
+def _wrap(draw, text, font, stroke, maxw):
+    """Greedy word-wrap so each line (incl. stroke) fits within maxw."""
+    lines, cur = [], ""
+    for w in text.split(" "):
+        t = (cur + " " + w).strip()
+        if not cur or draw.textlength(t, font=font) + 2 * stroke <= maxw:
+            cur = t
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 def caption_image(src_png, text, dest_png, position="bottom"):
-    """Draw a BIG bold caption (white text, thick black outline, uppercase,
-    centered, word-wrapped) onto a copy of src_png and save to dest_png."""
+    """Draw a bold caption (white, thick black outline, uppercase, centered)
+    onto a copy of src_png. The font size AUTO-FITS: it shrinks until the
+    wrapped text fits a bounded box in the lower band — so long lines never
+    cover the picture and short lines aren't oversized."""
     from PIL import Image, ImageDraw
     im = Image.open(src_png).convert("RGB")
     text = " ".join((text or "").split()).upper()
@@ -126,26 +143,34 @@ def caption_image(src_png, text, dest_png, position="bottom"):
         return
     W, H = im.size
     d = ImageDraw.Draw(im)
-    size = max(28, int(H * 0.085))
-    font = _load_font(size)
-    stroke = max(2, int(size * 0.16))
+    maxw = W * 0.86                 # usable text width
+    box_h = H * 0.30                # caption may fill at most ~30% of height
+    max_size = max(20, int(H * 0.070))
+    min_size = max(14, int(H * 0.028))
 
-    # greedy word-wrap to ~88% of width (leave room for the stroke)
-    maxw = W * 0.88
-    words, lines, cur = text.split(" "), [], ""
-    for w in words:
-        t = (cur + " " + w).strip()
-        if not cur or d.textlength(t, font=font) + 2 * stroke <= maxw:
-            cur = t
-        else:
-            lines.append(cur)
-            cur = w
-    if cur:
-        lines.append(cur)
+    chosen = None
+    size = max_size
+    while size >= min_size:
+        font = _load_font(size)
+        stroke = max(2, int(size * 0.14))
+        lines = _wrap(d, text, font, stroke, maxw)
+        asc, desc = font.getmetrics()
+        lh = asc + desc + int(size * 0.18)
+        block = lh * len(lines)
+        widest = max(d.textlength(ln, font=font) + 2 * stroke for ln in lines)
+        if block <= box_h and widest <= maxw:
+            chosen = (font, stroke, lines, lh, block)
+            break
+        size -= max(2, int(size * 0.08))
+    if chosen is None:              # extreme: settle for the smallest size
+        font = _load_font(min_size)
+        stroke = max(2, int(min_size * 0.14))
+        lines = _wrap(d, text, font, stroke, maxw)
+        asc, desc = font.getmetrics()
+        lh = asc + desc + int(min_size * 0.18)
+        chosen = (font, stroke, lines, lh, lh * len(lines))
 
-    asc, desc = font.getmetrics()
-    lh = asc + desc + int(size * 0.18)
-    block = lh * len(lines)
+    font, stroke, lines, lh, block = chosen
     y0 = (H - block) // 2 if position == "center" else int(H * 0.96 - block)
     for i, ln in enumerate(lines):
         tw = d.textlength(ln, font=font) + 2 * stroke
