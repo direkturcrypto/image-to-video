@@ -149,6 +149,7 @@ def api_start():
     if not prompts:
         return jsonify({"error": "No prompts."}), 400
     core.resolve_character(settings)   # so regen (uses STATE.settings) has it too
+    core.trim_outputs(len(prompts))    # drop leftover images from a larger old project
     with LOCK:
         STATE.update(running=True, stop=False, total=len(prompts), settings=settings)
         STATE["items"] = [{"idx": i, "prompt": p, "status": "pending",

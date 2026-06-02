@@ -313,6 +313,18 @@ def output_images():
     return sorted(p.name for p in OUTPUT_DIR.glob("[0-9][0-9][0-9].png"))
 
 
+def trim_outputs(keep):
+    """Delete generated images numbered beyond `keep` — leftovers from an
+    earlier, larger project that shared this output dir. (`extend` never calls
+    this; a fresh Start/generate does so the new project is clean.)"""
+    for p in OUTPUT_DIR.glob("[0-9][0-9][0-9].png"):
+        try:
+            if int(p.stem) > keep:
+                p.unlink()
+        except Exception:
+            pass
+
+
 # --------------------------------------------------------------------------
 # Style anchors from a sample video
 # --------------------------------------------------------------------------
@@ -761,8 +773,12 @@ def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
     imgs = output_images()
     if not imgs:
         raise RuntimeError("No generated images in output/ yet.")
-    n = len(imgs)
     prompts = prompts or load_project().get("prompts", [])
+    # Only build the CURRENT project's scenes: if we know the prompt count, cap
+    # to it so leftover images from an earlier (larger) project in the same
+    # output dir don't sneak in.
+    n = min(len(imgs), len(prompts)) if prompts else len(imgs)
+    imgs = imgs[:n]
     scene_prompts = (list(prompts) + [""] * n)[:n] if prompts else [""] * n
 
     def progress(stage, done, narration=None):

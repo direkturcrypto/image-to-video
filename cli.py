@@ -158,6 +158,7 @@ def cmd_generate(args):
     key = need(args.api_key, "DEROUTER_API_KEY", "API key")
     settings = img_settings(args)
     core.resolve_character(settings)
+    core.trim_outputs(len(prompts))     # drop leftover images from a larger old project
     core.save_project(prompts, settings)
     log(f"Generating {len(prompts)} images "
         f"(character={settings.get('character') or 'none'}) ...")
