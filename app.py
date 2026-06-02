@@ -238,6 +238,11 @@ def api_generate_prompts():
     return jsonify({"ok": True, "prompts": prompts})
 
 
+@app.route("/api/reset_output", methods=["POST"])
+def api_reset_output():
+    return jsonify({"ok": True, "removed": core.reset_output()})
+
+
 @app.route("/api/load_previous")
 def api_load_previous():
     proj = core.load_project()

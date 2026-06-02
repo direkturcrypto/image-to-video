@@ -278,6 +278,7 @@ A single stick figure standing alone in a dark cave holding a glowing torch, ner
         <div style="flex:0;"><button class="alt small" id="countBtn">Count</button></div>
         <div style="font-size:12px;" id="countInfo">0 prompts</div>
         <div style="flex:0;"><button class="alt small" id="loadPrevBtn" title="Reuse images already in output/">↻ Load from Prev Project</button></div>
+        <div style="flex:0;"><button class="alt small" id="clearProjBtn" title="Delete everything in output/ and start fresh">🗑 New project</button></div>
         <div style="font-size:12px;" id="loadPrevInfo"></div>
       </div>
     </div>
@@ -566,6 +567,14 @@ window.regen=async function(idx){
 $('mStopBtn').onclick=()=>fetch('/api/stop',{method:'POST'});
 $('mZipBtn').onclick=()=>window.location='/api/zip';
 
+$('clearProjBtn').onclick=async()=>{
+  if(!confirm('Clear ALL generated images/video/audio/metadata in output/ and start a fresh project? (anchors & characters are kept)'))return;
+  const d=await postJSON('/api/reset_output',{});
+  $('mgrid').innerHTML=''; $('mTotal').textContent=0; $('mDone').textContent=0;
+  $('mErr').textContent=0; $('mProg').style.width='0%'; $('mZipBtn').disabled=true;
+  $('loadPrevInfo').textContent='✅ output cleared ('+(d.removed||0)+' files)';
+  $('loadPrevInfo').style.color='#1f9d55';
+};
 $('loadPrevBtn').onclick=async()=>{
   $('loadPrevInfo').textContent='loading...';
   try{

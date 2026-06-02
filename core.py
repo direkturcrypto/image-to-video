@@ -313,6 +313,24 @@ def output_images():
     return sorted(p.name for p in OUTPUT_DIR.glob("[0-9][0-9][0-9].png"))
 
 
+def reset_output():
+    """Wipe the shared output dir's generated artifacts to start a fresh project
+    (does NOT touch anchors/characters/jobs)."""
+    patterns = ["[0-9][0-9][0-9].png", "final_video_*.mp4", "narrator_*.wav",
+                "narration.txt", "metadata.json", "metadata.txt", "thumbnail.png",
+                "thumbnail_prompt.txt", "project.json", "bundle.zip",
+                "_narration_audio.m4a"]
+    removed = 0
+    for pat in patterns:
+        for p in OUTPUT_DIR.glob(pat):
+            try:
+                p.unlink()
+                removed += 1
+            except Exception:
+                pass
+    return removed
+
+
 def trim_outputs(keep):
     """Delete generated images numbered beyond `keep` — leftovers from an
     earlier, larger project that shared this output dir. (`extend` never calls
