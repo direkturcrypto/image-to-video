@@ -781,10 +781,16 @@ def write_narration(api_key, n, scene_prompts, language="english", style="",
         "scene, and nothing else.")
     if style:
         system_msg += f"\nNarration style / tone: {style}"
+    # A visible variation seed (which the model actually reads) makes each build
+    # produce a genuinely fresh take, not a repeat of a previous run.
+    seed = secrets.token_hex(3)
+    user = (f"Scenes:\n\n{prompt_summary}\n\nVariation seed: {seed} — write a "
+            "FRESH rendering with different wording and phrasing from any earlier "
+            "version, while keeping the same story and meaning.")
     raw = chat_llm(api_key, model or NARRATION_MODEL,
                    [{"role": "system", "content": system_msg},
-                    {"role": "user", "content": f"Scenes:\n\n{prompt_summary}"}],
-                   temperature=0.8, max_tokens=8000)
+                    {"role": "user", "content": user}],
+                   temperature=1.0, max_tokens=8000)
     lines = _parse_prompt_list(raw, n)
     if len(lines) < n:
         lines += [""] * (n - len(lines))
