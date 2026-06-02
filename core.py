@@ -25,6 +25,7 @@ import json
 import base64
 import shutil
 import zipfile
+import secrets
 import subprocess
 from pathlib import Path
 
@@ -217,12 +218,18 @@ def chat_llm(api_key, model, messages, temperature=0.8, max_tokens=2000):
     """Call the derouter OpenAI-compatible /chat/completions endpoint.
 
     Returns the assistant message text. Raises RuntimeError on failure.
+    A per-call nonce is appended to the last message so an upstream response
+    cache can't return a stale/identical result — every build regenerates fresh.
     """
+    msgs = [dict(m) for m in messages]
+    if msgs:
+        msgs[-1]["content"] = (str(msgs[-1].get("content", "")) +
+                               f"\n\n<!-- nonce {secrets.token_hex(6)} -->")
     r = requests.post(
         f"{OPENAI_BASE}/chat/completions",
         headers={"Authorization": f"Bearer {api_key}",
                  "Content-Type": "application/json"},
-        json={"model": model, "messages": messages,
+        json={"model": model, "messages": msgs,
               "temperature": temperature, "max_tokens": max_tokens},
         timeout=180,
     )
