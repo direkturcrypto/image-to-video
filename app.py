@@ -343,7 +343,10 @@ def api_build_video():
     d = request.json or {}
     api_key = (d.get("api_key") or "").strip()
     tts_key = (d.get("tts_key") or "").strip()
-    prompts = d.get("prompts") or core.load_project().get("prompts", [])
+    # Narration must match the IMAGES on disk, which correspond to the saved
+    # project prompts — NOT whatever is typed in a prompt box (that may be stale
+    # from another tab/project, which made the video reuse old narration).
+    prompts = core.load_project().get("prompts", []) or (d.get("prompts") or [])
     if not api_key:
         return jsonify({"error": "Image/LLM API key required (Config)."}), 400
     if not tts_key:
