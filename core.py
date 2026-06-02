@@ -109,6 +109,16 @@ def has_ffmpeg():
     return shutil.which("ffmpeg") is not None
 
 
+def audio_duration(path):
+    """Duration in seconds of an audio/video file via ffprobe (0.0 on error)."""
+    try:
+        return float(subprocess.check_output(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(path)]).decode().strip())
+    except Exception:
+        return 0.0
+
+
 # --------------------------------------------------------------------------
 # Big bold burned-in captions (viral style) — rendered with Pillow, because
 # this ffmpeg build has no drawtext/libass.
@@ -817,17 +827,17 @@ def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
         shutil.rmtree(work)
     work.mkdir()
 
-    segments = []
+    # 1) TTS each line -> wav; measure exact duration; render captioned image.
+    audio_files, image_files, durs = [], [], []
     for i, (img, line) in enumerate(zip(imgs, lines)):
         if should_stop and should_stop():
             break
         progress(f"voice {i+1}/{n}", i, lines)
         speak = line.strip() or " "
         audio = tts_synthesize(tts_key, speak, voice, style, "wav", tts_model)
-        apath = work / f"seg_{i:03d}.wav"
+        apath = work / f"a_{i:03d}.wav"
         apath.write_bytes(audio)
-        seg = work / f"seg_{i:03d}.mp4"
-        # optionally burn a big bold caption (the narration line) onto the image
+        d = audio_duration(apath) or 0.6
         img_in = OUTPUT_DIR / img
         if subtitles and line.strip():
             cap = work / f"cap_{i:03d}.png"
@@ -836,44 +846,48 @@ def build_video(api_key, tts_key, prompts=None, voice="Mia", style="",
                 img_in = cap
             except Exception as e:
                 _log(f"[WARN] caption render failed (scene {i+1}): {e}")
-        # image duration = its own audio length, exactly (perfect sync, no speed
-        # change). Fast pacing comes from the short narration lines, not editing.
-        cmd = [
-            "ffmpeg", "-v", "error", "-y",
-            "-loop", "1", "-i", str(img_in),
-            "-i", str(apath),
-            "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p",
-            "-r", "25",                            # constant fps for clean concat
-            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-            "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
-            "-shortest", str(seg),
-        ]
-        r = subprocess.run(cmd, capture_output=True)
-        if r.returncode != 0 or not seg.exists():
-            raise RuntimeError(f"ffmpeg segment {i+1} failed: "
-                               f"{r.stderr.decode()[:300]}")
-        segments.append(seg)
+        audio_files.append(apath)
+        image_files.append(Path(img_in).resolve())
+        durs.append(d)
 
-    if not segments:
-        raise RuntimeError("No segments built.")
+    if not audio_files:
+        raise RuntimeError("No scenes built.")
 
     progress("stitching video", n, lines)
-    listfile = work / "list.txt"
-    listfile.write_text("".join(f"file '{s.name}'\n" for s in segments))
-    out = OUTPUT_DIR / f"final_video_{int(time.time())}.mp4"
-    # RE-ENCODE on concat (not -c copy): stream-copying AAC leaves a small
-    # priming gap per segment that accumulates into audio/video drift. Re-
-    # encoding to one continuous stream (constant fps) keeps it perfectly synced.
-    cc = subprocess.run(
+    # 2) one continuous master audio track (exact total) — no per-clip gaps.
+    alist = work / "audio.txt"
+    alist.write_text("".join(f"file '{p.name}'\n" for p in audio_files))
+    master = work / "master.wav"
+    am = subprocess.run(
         ["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0",
-         "-i", str(listfile),
-         "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p",
-         "-r", "25", "-vsync", "cfr",
-         "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
-         "-movflags", "+faststart", str(out)],
+         "-i", "audio.txt", "-c:a", "pcm_s16le", "-ar", "44100", str(master)],
         cwd=str(work), capture_output=True)
+    if am.returncode != 0 or not master.exists():
+        raise RuntimeError("ffmpeg audio concat failed: " + am.stderr.decode()[:300])
+
+    # 3) image timeline by EXACT duration (each image starts at the cumulative
+    #    audio time => image i shows exactly when narration i is heard; no drift).
+    ilist = work / "images.txt"
+    rows = ["ffconcat version 1.0"]
+    for p, d in zip(image_files, durs):
+        rows.append(f"file '{p}'")
+        rows.append(f"duration {d:.3f}")
+    rows.append(f"file '{image_files[-1]}'")     # concat demuxer needs the last repeated
+    ilist.write_text("\n".join(rows) + "\n")
+
+    # 4) single pass: image timeline + master audio -> final video.
+    out = OUTPUT_DIR / f"final_video_{int(time.time())}.mp4"
+    cc = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y",
+         "-f", "concat", "-safe", "0", "-i", str(ilist),
+         "-i", str(master),
+         "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=25",
+         "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
+         "-shortest", "-movflags", "+faststart", str(out)],
+        capture_output=True)
     if cc.returncode != 0 or not out.exists():
-        raise RuntimeError("ffmpeg concat failed: " + cc.stderr.decode()[:300])
+        raise RuntimeError("ffmpeg build failed: " + cc.stderr.decode()[:300])
 
     shutil.rmtree(work, ignore_errors=True)
     progress("done", n, lines)
